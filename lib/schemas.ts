@@ -35,6 +35,41 @@ export const DeclaredAccountSchema = z.object({
 
 export const LoanActionEnum = z.enum(["new", "append", "repayment"]);
 
+// A single transaction inside a "multi" message — e.g. "200 InDrive, Sohaib ka
+// 100 udhaar" is one add_expense + one lend_money. Deliberately NOT the same
+// schema as ParsedIntentSchema recursed: a sub-action can't itself be "multi"
+// or need_clarification/query_data, so this is a flat, non-recursive object
+// (the original comment on `actions` warned specifically against adding
+// "unused recursive-type complexity" — this sidesteps that by only allowing
+// one level of nesting, defined once).
+export const SubActionIntentEnum = z.enum([
+  "add_expense",
+  "add_income",
+  "lend_money",
+  "borrow_money",
+  "transfer",
+  "declare_account",
+]);
+
+export const SubActionSchema = z.object({
+  intent: SubActionIntentEnum,
+  amount: z.number().positive().optional(),
+  item: z.string().max(80).optional(),
+  date: z.string().optional(),
+  note: z.string().max(200).optional(),
+
+  category_id: z.string().optional(),
+  account_id: z.string().optional(),
+  to_account_id: z.string().optional(),
+  person_id: z.string().optional(),
+  person_name: z.string().max(50).optional(),
+
+  new_category: NewCategorySchema.optional(),
+  declared_account: DeclaredAccountSchema.optional(),
+  loan_action: LoanActionEnum.optional(),
+});
+export type SubAction = z.infer<typeof SubActionSchema>;
+
 export const ParsedIntentSchema = z.object({
   intent: IntentEnum,
   amount: z.number().positive().optional(),
@@ -64,11 +99,11 @@ export const ParsedIntentSchema = z.object({
   // and stored as the example's raw_text so the corpus learns from real speech.
   transcript: z.string().max(400).optional(),
 
-  // NOTE: multi-item entries ("500 doodh 200 rickshaw" as one message) are
-  // out of scope for this pass — /nl/commit only handles single-intent
-  // payloads (see the SUPPORTED set there). A recursive `actions: ParsedIntent[]`
-  // field belongs here once that's implemented; it was deliberately left off
-  // rather than adding unused recursive-type complexity now.
+  // Only set (and only meaningful) when intent === "multi" — one entry per
+  // distinct financial event in the message. Every other top-level field
+  // (amount, category_id, account_id, ...) is unset on the wrapper itself in
+  // that case; each action carries its own.
+  actions: z.array(SubActionSchema).min(2).max(5).optional(),
 });
 
 export type ParsedIntent = z.infer<typeof ParsedIntentSchema>;

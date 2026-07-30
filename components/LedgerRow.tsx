@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowDown,
@@ -6,9 +9,12 @@ import {
   ArrowLeft,
   ArrowLeftRight,
   Scale,
-  ChevronRight,
+  Trash2,
+  Check,
+  X,
 } from "lucide-react";
 import { Amount } from "./Amount";
+import { deleteTransactionAction } from "@/actions/transactions";
 import type { TxnType } from "@/lib/types";
 
 // DESIGN.md §3's glyph vocabulary, as real icons rather than Unicode
@@ -48,7 +54,16 @@ export interface LedgerRowData {
   note?: string;
 }
 
-export function LedgerRow({ row }: { row: LedgerRowData }) {
+export function LedgerRow({
+  row,
+  redirectTo,
+}: {
+  row: LedgerRowData;
+  /** Where the delete action lands afterward — the page this row is rendered
+   *  on, so deleting from Home doesn't unexpectedly jump to History. */
+  redirectTo: "/" | "/history";
+}) {
+  const [confirming, setConfirming] = useState(false);
   const Icon = ICON[row.type];
   const hasItem = Boolean(row.item);
   const label = row.item || row.categoryPath || TYPE_LABEL[row.type];
@@ -60,28 +75,57 @@ export function LedgerRow({ row }: { row: LedgerRowData }) {
     .join(" · ");
 
   return (
-    <Link
-      href={`/txn/${row.id}`}
-      className="group flex items-center gap-3 border-b border-rule-soft py-2.5 transition-colors last:border-b-0 hover:bg-surface-lift/60 active:bg-surface-lift"
-    >
-      {/* Monochrome by design (§3) — direction is the glyph, never a colour */}
-      <Icon size={15} strokeWidth={1.75} className="shrink-0 text-fg-faint" aria-hidden />
+    <div className="flex items-center gap-3 border-b border-rule-soft py-2.5 transition-colors last:border-b-0 hover:bg-surface-lift/60">
+      <Link href={`/txn/${row.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+        {/* Monochrome by design (§3) — direction is the glyph, never a colour */}
+        <Icon size={15} strokeWidth={1.75} className="shrink-0 text-fg-faint" aria-hidden />
 
-      <div className="min-w-0 flex-1">
-        <div className="t-body truncate">{label}</div>
-        {meta ? <div className="t-label truncate text-fg-muted">{meta}</div> : null}
-        {row.note ? <div className="t-label truncate italic text-fg-faint">{row.note}</div> : null}
-      </div>
+        <div className="min-w-0 flex-1">
+          <div className="t-body truncate">{label}</div>
+          {meta ? <div className="t-label truncate text-fg-muted">{meta}</div> : null}
+          {row.note ? <div className="t-label truncate italic text-fg-faint">{row.note}</div> : null}
+        </div>
 
-      {/* Fixed right column — the whole point of a ledger (§5) */}
-      <Amount value={row.amount} className="shrink-0 text-right tabular-nums" />
+        {/* Fixed right column — the whole point of a ledger (§5) */}
+        <Amount value={row.amount} className="shrink-0 text-right tabular-nums" />
+      </Link>
 
-      <ChevronRight
-        size={14}
-        strokeWidth={1.75}
-        className="-mr-1 shrink-0 text-transparent transition-colors group-hover:text-fg-faint"
-        aria-hidden
-      />
-    </Link>
+      {/* Always visible, not hover-revealed — this is a touch-first PWA, and a
+          row's only affordance being a :hover state left it unreachable on
+          phones. A tap arms a two-icon confirm in place, so one accidental tap
+          still can't delete anything. */}
+      {confirming ? (
+        <div className="flex shrink-0 items-center gap-1">
+          <form action={deleteTransactionAction}>
+            <input type="hidden" name="id" value={row.id} />
+            <input type="hidden" name="redirectTo" value={redirectTo} />
+            <button
+              type="submit"
+              aria-label="Confirm delete"
+              className="flex size-7 items-center justify-center rounded-full bg-out/15 text-out transition-colors hover:bg-out/25"
+            >
+              <Check size={14} strokeWidth={2.5} aria-hidden />
+            </button>
+          </form>
+          <button
+            type="button"
+            aria-label="Cancel delete"
+            onClick={() => setConfirming(false)}
+            className="flex size-7 items-center justify-center rounded-full text-fg-faint transition-colors hover:text-fg-muted"
+          >
+            <X size={14} strokeWidth={2} aria-hidden />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          aria-label="Delete entry"
+          onClick={() => setConfirming(true)}
+          className="-mr-1 flex size-7 shrink-0 items-center justify-center rounded-full text-fg-faint transition-colors hover:bg-out/10 hover:text-out"
+        >
+          <Trash2 size={14} strokeWidth={1.75} aria-hidden />
+        </button>
+      )}
+    </div>
   );
 }

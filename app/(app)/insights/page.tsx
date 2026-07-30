@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { getSession } from "@/lib/auth";
 import { forUser } from "@/lib/scope";
 import { formatPKR } from "@/lib/format";
+import { Sensitive } from "@/components/Sensitive";
 import { EmptyNote } from "@/components/EmptyState";
 import { TopBar } from "@/components/TopBar";
 import { TrendChart, type TrendPoint } from "@/components/TrendChart";
@@ -144,8 +145,10 @@ export default async function InsightsPage() {
                 <span
                   className={clsx("tnum font-num text-[28px] leading-none", net < 0 ? "text-out" : "text-in")}
                 >
-                  {net < 0 ? "−" : "+"}
-                  {formatPKR(Math.abs(net))}
+                  <Sensitive>
+                    {net < 0 ? "−" : "+"}
+                    {formatPKR(Math.abs(net))}
+                  </Sensitive>
                 </span>
               </div>
 
@@ -180,7 +183,7 @@ export default async function InsightsPage() {
                           <tr key={p.label} className="border-t border-rule-soft">
                             <td className="t-label py-1.5">{p.fullLabel}</td>
                             <td className="tnum py-1.5 text-right font-num text-[13px]">
-                              {formatPKR(p.value)}
+                              <Sensitive>{formatPKR(p.value)}</Sensitive>
                             </td>
                           </tr>
                         ))}
@@ -221,7 +224,9 @@ export default async function InsightsPage() {
                             <span className="t-body truncate">{row.name}</span>
                             <span className="flex shrink-0 items-baseline gap-2">
                               <span className="tnum text-[11px] text-fg-faint">{share}%</span>
-                              <span className="tnum font-num text-[14px]">{formatPKR(row.total)}</span>
+                              <span className="tnum font-num text-[14px]">
+                                <Sensitive>{formatPKR(row.total)}</Sensitive>
+                              </span>
                             </span>
                           </div>
                           {/* square baseline, 4px rounded data-end (§11.4), grows in on mount */}
@@ -254,7 +259,7 @@ export default async function InsightsPage() {
                               {spendTotal > 0 ? Math.round((row.total / spendTotal) * 100) : 0}%
                             </td>
                             <td className="tnum py-2 text-right font-num text-[13px]">
-                              {formatPKR(row.total)}
+                              <Sensitive>{formatPKR(row.total)}</Sensitive>
                             </td>
                           </tr>
                         ))}

@@ -185,14 +185,19 @@ export function TxnEditForm({
         </div>
       ) : null}
 
-      <div className="border-t border-rule pt-4">
+      {/* Set apart by whitespace alone, no divider — a hairline here would put
+          it in the same visual rhythm as the sections above, and a delete
+          trigger competing with Save for attention is exactly what read as
+          off. It only gains real weight (bordered, filled, explained) once
+          actually confirmed. */}
+      <div className="mt-6 flex justify-center">
         {confirmingDelete ? (
-          <form action={deleteTransactionAction} className="flex flex-col gap-3">
-            <input type="hidden" name="id" value={data.id} />
-            <p className="t-label text-fg-muted">
+          <form action={deleteTransactionAction} className="flex w-full flex-col gap-3">
+            <p className="t-label text-center text-fg-muted">
               Deleting will also reverse the account balance. The entry stays in
               the record — it isn&apos;t permanently erased.
             </p>
+            <input type="hidden" name="id" value={data.id} />
             <div className="flex gap-2">
               <DeleteButton />
               <button
@@ -208,10 +213,10 @@ export function TxnEditForm({
           <button
             type="button"
             onClick={() => setConfirmingDelete(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-chip border border-rule px-4 py-3 text-[15px] text-out transition-colors hover:bg-surface-lift"
+            className="flex items-center gap-1.5 py-2 text-[13px] text-out/70 transition-colors hover:text-out"
           >
-            <Trash2 size={16} strokeWidth={1.75} aria-hidden />
-            Delete
+            <Trash2 size={13} strokeWidth={1.75} aria-hidden />
+            Delete this entry
           </button>
         )}
       </div>

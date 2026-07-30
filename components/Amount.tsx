@@ -1,4 +1,5 @@
 import { formatPKR } from "@/lib/format";
+import { Sensitive } from "@/components/Sensitive";
 import clsx from "clsx";
 
 type AmountSize = "balance" | "row" | "label";
@@ -28,8 +29,10 @@ export function Amount({
     <span
       className={clsx("tnum whitespace-nowrap", SIZE[size], size !== "balance" && "font-num", className)}
     >
-      {prefix}
-      {formatPKR(value)}
+      <Sensitive>
+        {prefix}
+        {formatPKR(value)}
+      </Sensitive>
     </span>
   );
 }

@@ -70,6 +70,53 @@ const GEMINI_RESPONSE_SCHEMA = {
     confidence: { type: Type.NUMBER },
     clarification_question: { type: Type.STRING },
     transcript: { type: Type.STRING },
+    // Only populated when intent === "multi" — mirrors lib/schemas.ts's
+    // SubActionSchema. Deliberately ONE level deep and not a $ref back to the
+    // parent object: a sub-action can't itself be "multi", so there is no
+    // recursion to express here, matching why Zod's side stays non-recursive.
+    actions: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          intent: {
+            type: Type.STRING,
+            enum: ["add_expense", "add_income", "lend_money", "borrow_money", "transfer", "declare_account"],
+          },
+          amount: { type: Type.NUMBER },
+          item: { type: Type.STRING },
+          date: { type: Type.STRING },
+          note: { type: Type.STRING },
+          category_id: { type: Type.STRING },
+          account_id: { type: Type.STRING },
+          to_account_id: { type: Type.STRING },
+          person_id: { type: Type.STRING },
+          person_name: { type: Type.STRING },
+          new_category: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              type: { type: Type.STRING, enum: ["expense", "income"] },
+              parent_id: { type: Type.STRING },
+              parent_name: { type: Type.STRING },
+              reason: { type: Type.STRING },
+            },
+            required: ["name", "type"],
+          },
+          declared_account: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              type: { type: Type.STRING, enum: ["bank", "cash", "wallet"] },
+              balance: { type: Type.NUMBER },
+            },
+            required: ["name", "type", "balance"],
+          },
+          loan_action: { type: Type.STRING, enum: ["new", "append", "repayment"] },
+        },
+        required: ["intent"],
+      },
+    },
   },
   required: ["intent", "confidence"],
 };
@@ -93,7 +140,22 @@ Rules:
 - If genuinely ambiguous, set intent to "need_clarification" and fill clarification_question — never guess a financially consequential fact. clarification_question must always be written in English, regardless of what language the user spoke — it's UI copy, not a transcription.
 - query_data intent must NEVER include any new_* field.
 - Text may be Roman Urdu, Urdu script, or English — handle all three.
-- confidence is your own calibrated 0-1 estimate of how sure you are.`;
+- confidence is your own calibrated 0-1 estimate of how sure you are.
+- MULTI-INTENT: if the message describes more than one distinct financial event, set the top-level "intent" to "multi" and put one object per event in "actions" (2-5 items). Each action follows all the same rules above (most-specific category, never default an account for loans/income, etc.) as if it were its own top-level parse. When intent is "multi", leave every OTHER top-level field unset (amount, category_id, account_id, ...) — those belong only on each action, never on the wrapper. Do not use "multi" for a single event just because the sentence is long; it's specifically for genuinely separate transactions bundled into one message.
+
+Worked example — this exact pattern (an expense mentioned alongside a separate loan) is the most common multi case:
+User said: "ma na subha indrive karwai te jis ky ma na 200 rupees diya ty...ab sohaib ma mera 100 rupa dena ha"
+(Translation: paid 200 for an InDrive ride this morning; separately, Sohaib owes me 100.)
+Correct output shape:
+{
+  "intent": "multi",
+  "confidence": 0.9,
+  "actions": [
+    { "intent": "add_expense", "amount": 200, "item": "InDrive ride", "category_id": "<Transport > InDrive id>" },
+    { "intent": "lend_money", "amount": 100, "person_name": "Sohaib" }
+  ]
+}
+Note the loan action has NO account_id (loans never default an account) and the wrapper has no amount/category_id/account_id of its own — only "intent", "confidence", and "actions".`;
 
 // Audio goes straight to Gemini rather than through the browser's Web Speech
 // API. No browser ASR engine outputs Roman Urdu: "ur-PK" returns Urdu script

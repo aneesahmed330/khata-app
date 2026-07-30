@@ -84,17 +84,25 @@ export async function updateTransactionAction(
   redirect("/history");
 }
 
+// Deleting inline from a list (Home/History rows) should land back on that
+// same list, not always jump to History — but the target still comes from a
+// form field, so it's checked against a fixed allow-list rather than trusted
+// as-is (an unvalidated redirect target from form data is an open-redirect risk).
+const REDIRECT_ALLOWLIST = new Set(["/", "/history"]);
+
 export async function deleteTransactionAction(formData: FormData): Promise<void> {
   const session = await getSession();
   if (!session) redirect("/login");
 
   const id = String(formData.get("id") ?? "");
-  if (!ObjectId.isValid(id)) redirect("/history");
+  const requested = String(formData.get("redirectTo") ?? "");
+  const redirectTo = REDIRECT_ALLOWLIST.has(requested) ? requested : "/history";
+  if (!ObjectId.isValid(id)) redirect(redirectTo);
 
   const scope = await forUser(session.userId);
   // Soft-delete + full balance/loan reversal (plan.md §5 — never hard-delete).
   await reverseTransaction(scope, new ObjectId(id));
 
   revalidateLedger();
-  redirect("/history");
+  redirect(redirectTo);
 }

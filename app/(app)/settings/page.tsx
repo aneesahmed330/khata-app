@@ -4,6 +4,8 @@ import { forUser } from "@/lib/scope";
 import { logoutAction } from "@/actions/auth";
 import { TopBar } from "@/components/TopBar";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { HideBalancesToggle } from "@/components/HideBalancesToggle";
+import { Sensitive } from "@/components/Sensitive";
 import { formatPKR } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +33,11 @@ export default async function SettingsPage() {
             <StatRow
               Icon={Wallet}
               label="Accounts"
-              value={`${accounts.length} · ${formatPKR(totalBalance)}`}
+              value={
+                <>
+                  {accounts.length} · <Sensitive>{formatPKR(totalBalance)}</Sensitive>
+                </>
+              }
             />
             <StatRow Icon={FolderTree} label="Categories" value={String(categoryCount)} />
             <StatRow Icon={Users} label="People (loans)" value={String(people)} />
@@ -47,6 +53,11 @@ export default async function SettingsPage() {
             </div>
             <ThemeToggle />
           </div>
+        </section>
+
+        <section className="mt-8">
+          <h2 className="t-micro mb-3 text-fg-faint">Privacy</h2>
+          <HideBalancesToggle />
         </section>
 
         <section className="mt-8">
@@ -72,7 +83,7 @@ function StatRow({
 }: {
   Icon: typeof Wallet;
   label: string;
-  value: string;
+  value: React.ReactNode;
 }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3">

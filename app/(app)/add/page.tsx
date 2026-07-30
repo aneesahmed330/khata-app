@@ -38,6 +38,15 @@ export default async function AddPage() {
       </div>
 
       <AddForm accounts={accounts.map((a) => ({ id: a._id.toHexString(), name: a.name }))} />
+
+      <div className="mt-6 text-center">
+        <Link
+          href="/add/manual"
+          className="t-label text-fg-faint underline decoration-rule underline-offset-4 transition-colors hover:text-fg-muted"
+        >
+          Fill in manually instead
+        </Link>
+      </div>
     </main>
   );
 }

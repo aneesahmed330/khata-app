@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { formatPKR } from "@/lib/format";
+import { useHideBalances } from "@/lib/use-hide-balances";
 
 /** Animates a number from its previous value to a new one — DESIGN.md §6
  *  "Balance change: count-up, tabular so zero layout shift." tnum keeps digit
@@ -12,8 +13,12 @@ export function CountUpAmount({ value, className }: { value: number; className?:
   const [display, setDisplay] = useState(value);
   const fromRef = useRef(0);
   const mountedRef = useRef(false);
+  const [hidden] = useHideBalances();
 
   useEffect(() => {
+    // No point animating toward a number that's about to be masked anyway.
+    if (hidden) return;
+
     const reduce =
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -40,9 +45,13 @@ export function CountUpAmount({ value, className }: { value: number; className?:
     }
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-    // Re-runs only when the target value changes, intentionally not on `from`.
+    // Re-runs only when the target value or hidden-state changes, intentionally not on `from`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [value, hidden]);
 
-  return <span className={clsx("tnum", className)}>{formatPKR(Math.round(display))}</span>;
+  return (
+    <span className={clsx("tnum", className)}>
+      {hidden ? "••••••" : formatPKR(Math.round(display))}
+    </span>
+  );
 }

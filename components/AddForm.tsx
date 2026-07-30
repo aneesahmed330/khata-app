@@ -1,42 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Mic, Square, ArrowRight, Check, Undo2, X, CircleAlert, Loader2, Pencil } from "lucide-react";
+import { Mic, Square, ArrowRight, Check, X, CircleAlert, Loader2, Pencil } from "lucide-react";
 import clsx from "clsx";
-import type { ParsedIntent } from "@/lib/schemas";
+import type { ParsedIntent, SubAction } from "@/lib/schemas";
 import { useRecorder, type Recording } from "@/lib/recorder";
 import { formatPKR } from "@/lib/format";
 import { relativeDateLabel } from "@/components/DateRule";
+import {
+  ReceiptView,
+  type ActionReceipt,
+  type NeedsConfirmation,
+  type CommitResponse,
+} from "@/components/ReceiptView";
 
-// Client-side mirrors of server response shapes — kept local rather than
-// importing lib/receipt.ts / lib/schemas.ts's server-only siblings, which
-// pull in the mongodb driver and would break the client bundle.
-interface EffectLike {
-  kind: string;
-  [key: string]: unknown;
-}
-interface ActionReceipt {
-  id: string;
-  summary: string;
-  effects: EffectLike[];
-  undoToken: string;
-  spoken: string;
-}
-interface NeedsConfirmation {
-  needsConfirmation: true;
-  reason: "category" | "account" | "loan_action";
-  proposal?: { name: string; type?: string; parentName?: string | null; balance?: number };
-  loanContext?: { person: string; outstanding: number | null };
-  missing?: string[];
-}
+// Client-side mirror of the server response shape — kept local rather than
+// importing lib/schemas.ts's server-only siblings, which pull in the mongodb
+// driver and would break the client bundle.
 type ParseSource = "dict" | "llm" | "llm_audio";
 type ParseResponse =
   | { source: "dict" | "llm"; parsed: ParsedIntent }
   | { source: "llm_audio"; parsed: ParsedIntent; transcript: string }
   | { source: "quota_exceeded"; error: string }
   | { error: string };
-type CommitResponse = ActionReceipt | NeedsConfirmation | { error: string };
 
 type Step =
   | { kind: "input" }
@@ -57,6 +45,14 @@ const EXAMPLES = [
   "Lent Bilal 5000",
   "Salary received 300000",
 ];
+
+// A "multi" action carries the same fields as ParsedIntent (SubAction is
+// literally its fields minus the multi-only/parse-only ones — see
+// lib/schemas.ts) — this just satisfies the type checker so summaryLine/
+// metaLine can render either without a second copy of each.
+function subActionToDisplay(action: SubAction): ParsedIntent {
+  return { ...action, confidence: 1 };
+}
 
 function summaryLine(parsed: ParsedIntent): string {
   const amount = parsed.amount ? formatPKR(parsed.amount) : "?";
@@ -306,7 +302,7 @@ export function AddForm({ accounts }: { accounts: { id: string; name: string }[]
       ) : null}
 
       {step.kind === "receipt" ? (
-        <ReceiptCard receipt={step.receipt} onUndo={() => void undo(step.receipt)} onDone={reset} />
+        <ReceiptView receipt={step.receipt} onUndo={() => void undo(step.receipt)} onDone={reset} />
       ) : null}
 
       {step.kind === "error" ? (
@@ -315,13 +311,24 @@ export function AddForm({ accounts }: { accounts: { id: string; name: string }[]
             <CircleAlert size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-out" aria-hidden />
             <p className="t-body flex-1">{step.message}</p>
           </div>
-          <button
-            type="button"
-            onClick={reset}
-            className="mt-3 w-full rounded-chip border border-rule py-2.5 text-[14px] transition-colors hover:bg-surface"
-          >
-            OK
-          </button>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={reset}
+              className="flex-1 rounded-chip border border-rule py-2.5 text-[14px] transition-colors hover:bg-surface"
+            >
+              OK
+            </button>
+            {/* A parse/commit failure used to be a dead end — the only button
+                was "OK", which just reset the composer to try the exact same
+                thing again. This is the actual escape hatch. */}
+            <Link
+              href="/add/manual"
+              className="flex flex-1 items-center justify-center rounded-chip bg-accent py-2.5 text-[14px] font-medium text-on-accent transition-transform duration-150 active:scale-[0.98]"
+            >
+              Fill in manually
+            </Link>
+          </div>
         </div>
       ) : null}
     </div>
@@ -423,8 +430,30 @@ function PreviewCard({
   onEdit: (text: string) => void;
 }) {
   const { parsed, pending, rawText, source } = step;
-  const meta = metaLine(parsed, accounts);
   const fromAudio = source === "llm_audio";
+  // A single-intent message is rendered as a "list" of exactly one action —
+  // multi's N ledger-lines and a normal message's 1 line are the same
+  // component either way, no separate rendering path to keep in sync.
+  const previewActions: ParsedIntent[] =
+    parsed.intent === "multi" ? (parsed.actions ?? []).map(subActionToDisplay) : [parsed];
+
+  // For multi, an override applies to ONE action (actionOverrides keyed by
+  // index); for a single-intent message it applies to the whole thing, same
+  // as before this feature existed.
+  function overridesFor(fields: Record<string, unknown>): Record<string, unknown> {
+    if (pending?.actionIndex === undefined) return fields;
+    return { actionOverrides: { [pending.actionIndex]: fields } };
+  }
+
+  function pickAccountFor(accountId: string) {
+    if (pending?.actionIndex === undefined) {
+      onCommit({ ...step, parsed: { ...parsed, account_id: accountId }, pending: undefined });
+      return;
+    }
+    const actions = [...(parsed.actions ?? [])];
+    actions[pending.actionIndex] = { ...actions[pending.actionIndex]!, account_id: accountId };
+    onCommit({ ...step, parsed: { ...parsed, actions }, pending: undefined });
+  }
 
   return (
     <div className="anim-rise">
@@ -446,26 +475,41 @@ function PreviewCard({
         </button>
       </div>
 
-      {/* the ledger line — radius 2px, hairline drawn from the left (§5) */}
+      {/* the ledger line(s) — radius 2px, hairline drawn from the left (§5).
+          Multi renders one per action, each marked when it's the one a
+          pending confirmation is about. */}
       <div className="relative">
         <span aria-hidden className="anim-rule absolute inset-x-0 top-0 h-px bg-rule" />
-        <div className="flex items-center gap-3 border-b border-rule py-3.5">
-          <div className="min-w-0 flex-1">
-            <div className="t-body truncate">{summaryLine(parsed)}</div>
-            {meta ? <div className="t-label truncate text-fg-muted">{meta}</div> : null}
-            {parsed.note ? (
-              <div className="t-label truncate italic text-fg-faint">{parsed.note}</div>
-            ) : null}
-          </div>
-          {parsed.amount ? (
-            <span className="tnum shrink-0 font-num text-[17px]">{formatPKR(parsed.amount)}</span>
-          ) : null}
-        </div>
+        {previewActions.map((action, i) => {
+          const meta = metaLine(action, accounts);
+          const isPendingAction = parsed.intent === "multi" && pending?.actionIndex === i;
+          return (
+            <div
+              key={i}
+              className={clsx(
+                "flex items-center gap-3 border-b border-rule py-3.5",
+                isPendingAction && "opacity-60",
+              )}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="t-body truncate">{summaryLine(action)}</div>
+                {meta ? <div className="t-label truncate text-fg-muted">{meta}</div> : null}
+                {action.note ? (
+                  <div className="t-label truncate italic text-fg-faint">{action.note}</div>
+                ) : null}
+              </div>
+              {action.amount ? (
+                <span className="tnum shrink-0 font-num text-[17px]">{formatPKR(action.amount)}</span>
+              ) : null}
+            </div>
+          );
+        })}
       </div>
 
       {pending ? (
         <div className="mt-5">
           <p className="t-label mb-2.5 text-fg-muted">
+            {pending.actionIndex !== undefined ? `For "${summaryLine(previewActions[pending.actionIndex]!)}": ` : ""}
             {pending.reason === "category"
               ? "This category doesn't exist — create it?"
               : pending.reason === "account"
@@ -479,41 +523,31 @@ function PreviewCard({
               <Chip
                 primary
                 label={`+ ${pending.proposal.name}${pending.proposal.parentName ? ` (${pending.proposal.parentName})` : ""}`}
-                onClick={() => onCommit(step, { confirmCreateCategory: true })}
+                onClick={() => onCommit(step, overridesFor({ confirmCreateCategory: true }))}
               />
             ) : null}
             {pending.reason === "account" && pending.proposal ? (
               <Chip
                 primary
                 label={`+ ${pending.proposal.name} · ${formatPKR(pending.proposal.balance ?? 0)}`}
-                onClick={() => onCommit(step, { confirmCreateAccount: true })}
+                onClick={() => onCommit(step, overridesFor({ confirmCreateAccount: true }))}
               />
             ) : null}
             {pending.reason === "account" && !pending.proposal
               ? accounts.map((a) => (
-                  <Chip
-                    key={a.id}
-                    label={a.name}
-                    onClick={() =>
-                      onCommit({
-                        ...step,
-                        parsed: { ...parsed, account_id: a.id },
-                        pending: undefined,
-                      })
-                    }
-                  />
+                  <Chip key={a.id} label={a.name} onClick={() => pickAccountFor(a.id)} />
                 ))
               : null}
             {pending.reason === "loan_action" && pending.loanContext ? (
               <>
-                <Chip label="New loan" onClick={() => onCommit(step, { confirmedLoanAction: "new" })} />
+                <Chip label="New loan" onClick={() => onCommit(step, overridesFor({ confirmedLoanAction: "new" }))} />
                 <Chip
                   label={`Add to ${formatPKR(pending.loanContext.outstanding ?? 0)}`}
-                  onClick={() => onCommit(step, { confirmedLoanAction: "append" })}
+                  onClick={() => onCommit(step, overridesFor({ confirmedLoanAction: "append" }))}
                 />
                 <Chip
                   label={`${pending.loanContext.person} is paying back`}
-                  onClick={() => onCommit(step, { confirmedLoanAction: "repayment" })}
+                  onClick={() => onCommit(step, overridesFor({ confirmedLoanAction: "repayment" }))}
                 />
               </>
             ) : null}
@@ -550,102 +584,3 @@ function PreviewCard({
   );
 }
 
-function ReceiptCard({
-  receipt,
-  onUndo,
-  onDone,
-}: {
-  receipt: ActionReceipt;
-  onUndo: () => void;
-  onDone: () => void;
-}) {
-  // 5-minute undo window server-side; the bar is a 5s visual affordance only
-  // (DESIGN.md §6 undo toast), so it never implies the token has expired.
-  const [dismissed, setDismissed] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setDismissed(true), 5000);
-    return () => clearTimeout(t);
-  }, []);
-
-  return (
-    <div className="anim-rise">
-      <div className="mb-3 flex items-center gap-2">
-        <span className="flex size-5 items-center justify-center rounded-full bg-in/15 text-in">
-          <Check size={12} strokeWidth={3} aria-hidden />
-        </span>
-        <span className="t-label text-fg-muted">Done</span>
-      </div>
-
-      <div className="border-t border-rule">
-        {receipt.effects.map((effect, i) => (
-          <div key={i} className="flex items-start gap-2.5 border-b border-rule-soft py-2.5">
-            <span className="mt-0.5 shrink-0 text-fg-faint">
-              {effect.kind === "nothing_changed" ? (
-                <span className="block size-1 rounded-full bg-fg-faint" aria-hidden />
-              ) : (
-                <Check size={13} strokeWidth={2} aria-hidden />
-              )}
-            </span>
-            <span className="t-label flex-1">{describeEffect(effect)}</span>
-          </div>
-        ))}
-      </div>
-
-      {!dismissed ? (
-        <div aria-hidden className="mt-0.5 h-px overflow-hidden">
-          <div
-            className="h-px origin-left bg-accent"
-            style={{ animation: "k-countdown 5s linear both" }}
-          />
-        </div>
-      ) : null}
-
-      <div className="mt-5 flex gap-2">
-        <button
-          type="button"
-          onClick={onUndo}
-          className="flex items-center justify-center gap-2 rounded-chip border border-rule px-4 py-3.5 text-[15px] text-fg-muted transition-colors hover:text-fg"
-        >
-          <Undo2 size={16} strokeWidth={1.75} aria-hidden />
-          Undo
-        </button>
-        <button
-          type="button"
-          onClick={onDone}
-          className="flex-1 rounded-chip bg-accent py-3.5 text-[15px] font-medium text-on-accent transition-transform duration-150 active:scale-[0.98]"
-        >
-          Add another
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function describeEffect(effect: EffectLike): string {
-  switch (effect.kind) {
-    case "transaction_added":
-      return `${effect.item ?? effect.categoryPath ?? "Entry"} — ${formatPKR(Number(effect.amount ?? 0))}`;
-    case "category_created":
-      return `Created category ${effect.name}`;
-    case "tag_created":
-      return `Created tag "${effect.name}"`;
-    case "person_created":
-      return `Added ${effect.name}`;
-    case "loan_opened":
-      return `Loan opened — ${formatPKR(Number(effect.amount ?? 0))}`;
-    case "loan_updated":
-      return `${effect.person} — ${formatPKR(Number(effect.outstanding ?? 0))} outstanding`;
-    case "loan_settled":
-      return `${effect.person}'s loan settled`;
-    case "transfer_made":
-      return `${effect.from} → ${effect.to} — ${formatPKR(Number(effect.amount ?? 0))}`;
-    case "account_created":
-      return `Created account ${effect.name} — ${formatPKR(Number(effect.balance ?? 0))}`;
-    case "balance_adjusted":
-      return `${effect.name}: ${formatPKR(Number(effect.from ?? 0))} → ${formatPKR(Number(effect.to ?? 0))}`;
-    case "nothing_changed":
-      return `${effect.what} — ${effect.reason}`;
-    default:
-      return JSON.stringify(effect);
-  }
-}

@@ -1,4 +1,7 @@
+"use client";
+
 import { formatPKR } from "@/lib/format";
+import { useHideBalances } from "@/lib/use-hide-balances";
 import clsx from "clsx";
 
 export interface AccountSummary {
@@ -13,12 +16,16 @@ export interface AccountSummary {
 // "floating" row rather than a complete list of accounts). Everything fits the
 // viewport width; nothing scrolls off-screen.
 export function AccountGrid({ accounts }: { accounts: AccountSummary[] }) {
+  const [hidden] = useHideBalances();
   if (accounts.length === 0) return null;
 
   return (
     <div className="grid grid-cols-2 gap-2">
       {accounts.map((a, i) => {
         const isTrailingOdd = i === accounts.length - 1 && accounts.length % 2 === 1;
+        // Negative-balance red is itself a signal — suppressed along with the
+        // number so hiding balances doesn't leave "this one's overdrawn" visible.
+        const negative = !hidden && a.balance < 0;
         return (
           <div
             key={a.id}
@@ -30,12 +37,9 @@ export function AccountGrid({ accounts }: { accounts: AccountSummary[] }) {
           >
             <span className="truncate text-[11px] text-fg-muted">{a.name}</span>
             <span
-              className={clsx(
-                "tnum font-num text-[15px] leading-none",
-                a.balance < 0 && "text-out",
-              )}
+              className={clsx("tnum font-num text-[15px] leading-none", negative && "text-out")}
             >
-              {formatPKR(a.balance)}
+              {hidden ? "••••••" : formatPKR(a.balance)}
             </span>
           </div>
         );

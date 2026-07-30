@@ -14,12 +14,15 @@ function groupIndian(digits: string): string {
   return `${groups.join(",")},${last3}`;
 }
 
-/** 124500 -> "1,24,500". Negative -> leading "-". Rounds to whole rupees. */
+/** 124500.4 -> "1,24,500.40". Negative -> leading "-". Always shows paisa
+ *  (2dp) — dropping them silently turned "50.48" into "50" everywhere it was
+ *  displayed, which read as data loss even though the stored amount was fine. */
 export function formatPKR(amount: number): string {
   const negative = amount < 0;
-  const whole = Math.round(Math.abs(amount)).toString();
-  const grouped = groupIndian(whole);
-  return negative ? `-${grouped}` : grouped;
+  const [wholePart, decimalPart] = Math.abs(amount).toFixed(2).split(".");
+  const grouped = groupIndian(wholePart!);
+  const result = `${grouped}.${decimalPart}`;
+  return negative ? `-${result}` : result;
 }
 
 /** Same as formatPKR but with the Rs prefix for standalone display. */

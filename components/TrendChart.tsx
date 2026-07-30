@@ -3,6 +3,7 @@
 import { useId, useMemo, useRef, useState } from "react";
 import { linePath, areaPath, scaleLinear } from "@/lib/chart";
 import { formatPKR } from "@/lib/format";
+import { useHideBalances } from "@/lib/use-hide-balances";
 
 export interface TrendPoint {
   /** Sparse x-axis text, e.g. "1", "15" */
@@ -25,6 +26,7 @@ export function TrendChart({ points }: { points: TrendPoint[] }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const gradientId = useId();
+  const [hideBalances] = useHideBalances();
 
   const maxValue = Math.max(...points.map((p) => p.value), 1);
   const baseline = HEIGHT - PAD_BOTTOM;
@@ -147,7 +149,9 @@ export function TrendChart({ points }: { points: TrendPoint[] }) {
           }}
         >
           <div className="t-micro text-fg-faint">{hovered.fullLabel}</div>
-          <div className="tnum font-num text-[13px] text-fg">{formatPKR(hovered.value)}</div>
+          <div className="tnum font-num text-[13px] text-fg">
+            {hideBalances ? "••••••" : formatPKR(hovered.value)}
+          </div>
         </div>
       ) : null}
     </div>

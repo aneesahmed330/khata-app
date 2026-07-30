@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { formatPKR } from "@/lib/format";
+import { Sensitive } from "@/components/Sensitive";
 
 // A single-number form — a stat tile, not a chart (DESIGN.md §11.1). Colour is
 // allowed here because this is summary/state, which is one of the three places
@@ -40,7 +41,9 @@ function Tile({
         <Icon size={12} strokeWidth={2} className={`shrink-0 ${tone}`} aria-hidden />
         <span className="t-micro text-fg-faint">{label}</span>
       </div>
-      <span className="tnum truncate font-num text-[17px] leading-none">{formatPKR(value)}</span>
+      <span className="tnum truncate font-num text-[17px] leading-none">
+        <Sensitive>{formatPKR(value)}</Sensitive>
+      </span>
     </div>
   );
 }

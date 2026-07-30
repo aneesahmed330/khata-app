@@ -121,7 +121,7 @@ export default async function HomePage() {
                 total={group.outflow > 0 ? `−${formatPKR(group.outflow)}` : undefined}
               />
               {group.rows.map((row) => (
-                <LedgerRow key={row.id} row={row} />
+                <LedgerRow key={row.id} row={row} redirectTo="/" />
               ))}
             </div>
           ))
