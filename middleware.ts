@@ -44,6 +44,14 @@ export async function middleware(req: NextRequest) {
 // (the client expects JSON, not the login page's HTML) and would also
 // hijack /api/cron/daily, which authenticates via CRON_SECRET, not a
 // session cookie.
+//
+// manifest.webmanifest/icon-*.png/apple-icon.png are also excluded — the OS
+// fetches these to decide whether the app is installable, often without any
+// session cookie attached. Without this exclusion every one of those requests
+// got a 307 to /login instead of the actual manifest/icon bytes, which
+// silently broke "Add to Home Screen" for anyone not already logged in.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|api|manifest.webmanifest|icon-192.png|icon-512.png|apple-icon.png).*)",
+  ],
 };
