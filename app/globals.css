@@ -1,0 +1,347 @@
+@import "tailwindcss";
+
+/* ── Token architecture ───────────────────────────────────────────────────────
+   @theme declares the Tailwind-facing names (so `bg-surface`, `text-fg-muted`,
+   `rounded-chip`, `font-num` all exist as real utilities). Each one points at a
+   runtime `--k-*` var that :root swaps per theme. Components use the utilities;
+   nobody writes a hex, and nobody writes inline style for color. DESIGN.md §7.1
+   ─────────────────────────────────────────────────────────────────────────── */
+@theme {
+  --color-surface: var(--k-surface);
+  --color-surface-lift: var(--k-surface-lift);
+  --color-surface-sunk: var(--k-surface-sunk);
+
+  --color-rule: var(--k-rule);
+  --color-rule-soft: var(--k-rule-soft);
+
+  --color-fg: var(--k-fg);
+  --color-fg-muted: var(--k-fg-muted);
+  --color-fg-faint: var(--k-fg-faint);
+
+  --color-accent: var(--k-accent);
+  --color-accent-text: var(--k-accent-text);
+  --color-on-accent: var(--k-on-accent);
+
+  --color-out: var(--k-out);
+  --color-in: var(--k-in);
+  --color-pending: var(--k-pending);
+
+  /* chart marks — DESIGN.md §11.2/§11.3, separate steps per surface */
+  --color-chart-mag: var(--k-chart-mag);
+  --color-chart-in: var(--k-chart-in);
+  --color-chart-out: var(--k-chart-out);
+
+  --font-display: "Bricolage Grotesque", var(--font-bricolage), sans-serif;
+  --font-ui: "Archivo", var(--font-archivo), sans-serif;
+  --font-num: "Spline Sans Mono", var(--font-spline), ui-monospace, monospace;
+  --font-urdu: "Noto Nastaliq Urdu", var(--font-nastaliq), serif;
+
+  /* radius — exactly 3 (DESIGN.md §7.3) */
+  --radius-row: 2px;
+  --radius-chip: 12px;
+  --radius-sheet: 20px;
+}
+
+/* ── ink (dark) — the default. DESIGN.md §2 + §8 ─────────────────────────── */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --k-surface: #0e1a1c;
+  --k-surface-lift: #152426;
+  --k-surface-sunk: #0a1416;
+
+  --k-rule: #24373a;
+  --k-rule-soft: #1b2c2f;
+
+  --k-fg: #edefea;
+  --k-fg-muted: #8ca0a2;
+  --k-fg-faint: #566b6d;
+
+  --k-accent: #e8a33d;
+  --k-accent-text: #e8a33d; /* 8.23:1 on ink — PASS */
+  --k-on-accent: #0e1a1c;
+
+  --k-out: #c2544a;
+  --k-in: #4e9e7f;
+  --k-pending: #6b7ba8;
+
+  --k-chart-mag: #e8a33d;
+  --k-chart-in: #3e9b78;
+  --k-chart-out: #c2544a;
+}
+
+/* ── paper (light) — first-class, not a flip. DESIGN.md §8 ────────────────────
+   Every token gets a real light-mode step. The previous build only swapped the
+   background, which left near-white text on bone — unreadable. Notably the raw
+   marigold accent is NOT reused for text here: #E8A33D is 1.77:1 on paper.
+   Accent-dim (#A8762C, 3.25:1) carries accent text and chart marks instead,
+   exactly as DESIGN.md §11.2 specifies. The accent FILL stays marigold, since
+   it's a background with dark ink on top.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --k-surface: #e8e9e4;
+  --k-surface-lift: #f2f3ef;
+  --k-surface-sunk: #dcded7;
+
+  --k-rule: #c6c9c1;
+  --k-rule-soft: #d6d8d1;
+
+  --k-fg: #111e20;
+  --k-fg-muted: #4e6062;
+  --k-fg-faint: #6e7d7e;
+
+  --k-accent: #e8a33d;
+  --k-accent-text: #a8762c;
+  --k-on-accent: #17110a;
+
+  --k-out: #a8433a;
+  --k-in: #2f7057;
+  --k-pending: #4d5c84;
+
+  --k-chart-mag: #a8762c;
+  --k-chart-in: #2f7057;
+  --k-chart-out: #a8433a;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+
+    --k-surface: #e8e9e4;
+    --k-surface-lift: #f2f3ef;
+    --k-surface-sunk: #dcded7;
+
+    --k-rule: #c6c9c1;
+    --k-rule-soft: #d6d8d1;
+
+    --k-fg: #111e20;
+    --k-fg-muted: #4e6062;
+    --k-fg-faint: #6e7d7e;
+
+    --k-accent: #e8a33d;
+    --k-accent-text: #a8762c;
+    --k-on-accent: #17110a;
+
+    --k-out: #a8433a;
+    --k-in: #2f7057;
+    --k-pending: #4d5c84;
+
+    --k-chart-mag: #a8762c;
+    --k-chart-in: #2f7057;
+    --k-chart-out: #a8433a;
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--color-rule);
+  }
+
+  html {
+    background: var(--color-surface);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--color-surface);
+    color: var(--color-fg);
+    font-family: var(--font-ui);
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Zero shadows anywhere — depth is hairline + surface lift (DESIGN.md §7.4) */
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+  }
+
+  /* visible keyboard focus — DESIGN.md §9 */
+  :focus-visible {
+    outline: 2px solid var(--color-accent-text);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+@layer utilities {
+  /* tabular figures — DESIGN.md §4, non-negotiable on every number */
+  .tnum {
+    font-feature-settings: "tnum" 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .font-urdu {
+    font-family: var(--font-urdu);
+    line-height: 2.1;
+  }
+
+  /* type scale — DESIGN.md §4, exactly 7 steps */
+  .t-balance {
+    font-family: var(--font-display);
+    font-size: 44px;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    font-weight: 500;
+  }
+  /* Home's hero balance — same face, smaller, for a compact dashboard-height
+   * top section. The full 44px .t-balance stays reserved for the /login
+   * wordmark, which needs the larger presence on an otherwise-empty screen. */
+  .t-balance-compact {
+    font-family: var(--font-display);
+    font-size: 34px;
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    font-weight: 500;
+  }
+  .t-amount {
+    font-family: var(--font-num);
+    font-size: 17px;
+    line-height: 1;
+  }
+  .t-title {
+    font-family: var(--font-display);
+    font-size: 20px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    font-weight: 500;
+  }
+  .t-body {
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .t-label {
+    font-size: 13px;
+    line-height: 1.3;
+    letter-spacing: 0.01em;
+  }
+  .t-micro {
+    font-size: 11px;
+    line-height: 1.2;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .safe-b {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* ── motion — durations/easings mirror lib/motion.ts (DESIGN.md §6) ───────── */
+@keyframes k-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes k-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes k-stamp {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes k-rule-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes k-countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+@keyframes k-pulse-ring {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.18);
+  }
+}
+
+.anim-rise {
+  animation: k-rise 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.anim-fade {
+  animation: k-fade 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.anim-stamp {
+  animation: k-stamp 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.anim-rule {
+  transform-origin: left;
+  animation: k-rule-draw 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.anim-pulse {
+  animation: k-pulse-ring 1.6s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+/* Chart/insights bars grow from 0 to their data width on mount. The target
+ * width is data-driven per bar, so it's passed in as --bar-w and the keyframe
+ * animates toward that custom property rather than a fixed end value. */
+@keyframes k-bar-grow {
+  from {
+    width: 0;
+  }
+  to {
+    width: var(--bar-w);
+  }
+}
+.anim-bar-grow {
+  width: var(--bar-w);
+  animation: k-bar-grow 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* reduced motion — non-negotiable (DESIGN.md §6) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
