@@ -128,11 +128,16 @@ Har correction se: (1) naya `aliases` row → agli baar Layer 1 pakad lega, Gemi
 - 3k → 100k ka faida almost zero (retrieval sirf 15 uthata hai). Pehle 3k pe accuracy naapo.
 
 ### 2.4 Quota math (kyun Layer 1 zaroori hai)
+
+**Verified live quota (2026-07-31): `gemini-2.5-flash` free tier = 20 RPD, na ke assumed 250.** Neeche wali table originally 250 RPD assume karti thi — real numbers bohot tight hain:
+
 | | Layer 1 ke bina | Layer 1 ke saath (80% hit) |
 |---|---|---|
 | 250 entries/din | 250 API calls | **50 API calls** |
-| Free tier (worst case 250 RPD) | quota exactly khatam | 20% use |
+| Free tier (**actual: 20 RPD**) | quota din ke ~8% mein khatam | 50 calls bhi 20 RPD se **2.5x zyada** — abhi bhi overshoot |
 | Latency (typical entry) | ~1.5–3s | **~20ms** |
+
+**Matlab 80% Layer-1 hit rate bhi kaafi nahi hai** jab tak vocabulary itni mature na ho jaye ke Layer 2 escalation din mein 20 se kam ho. Layer 3 correction loop (naya alias turant save karna) isi liye pehle se zyada zaroori hai — har naya alias ek future Gemini call bachata hai.
 
 ---
 
@@ -600,7 +605,9 @@ bootstrapUser({ email, password, name })
 
 ### 8.3 Gemini quota — single user, aaram se
 
-**Decision: filhal sirf Anees use karega.** Schema multi-user hai (har collection mein `user_id`, saare indexes `(user_id, ...)`) — wo muft mila hai aur baad mein signup kholna `bootstrapUser()` call karne ka kaam hai. Lekin **abhi ke liye quota koi masla nahi**: Layer 1 ke saath ~250 entries/din pe sirf ~50 API calls lagti hain, jo worst-case 250 RPD ka 20% hai.
+**Decision: filhal sirf Anees use karega.** Schema multi-user hai (har collection mein `user_id`, saare indexes `(user_id, ...)`) — wo muft mila hai aur baad mein signup kholna `bootstrapUser()` call karne ka kaam hai.
+
+**Update (2026-07-31), verified live:** `gemini-2.5-flash` free tier ka actual quota **20 requests/day** nikla — assumed 250 se bohot kam. Matlab is doc ka "quota koi masla nahi" wala andaza ab sahi nahi. Layer 1 ke 80% hit rate pe bhi ~50 calls/din ki zaroorat 20 RPD se bohot upar hai. **Practical asar:** Layer 1 dictionary hits (zero-cost) ab pehle se kahin zyada zaroori hain — jab bhi koi naya alias/correction milay wo turant save karo taake wahi phrase dobara Gemini na maangay. Audio path (`parseIntentFromAudio`) bhi isi 20/din pool se khaata hai, alag nahi. Din khatam hone pe 429 aata hai, app Layer 1 + manual form pe degrade ho jati hai (neeche dekho) — ye already handle hai.
 
 Is liye ye **nahi** bana rahe (over-engineering hota):
 - ~~per-user daily LLM budget~~
@@ -619,7 +626,7 @@ Atlas M0 IP allowlist `0.0.0.0/0` (Vercel IPs static nahi).
 **Free tier limits:**
 - Vercel Hobby: non-commercial, 100GB bandwidth, **1 cron job, din mein ek dafa** — recurring + hygiene ek hi `cron/daily` mein
 - Atlas M0: 512MB — saalon tak kaafi
-- Gemini: **~10–15 RPM, ~250–1500 RPD** (figures source ke hisaab se alag, Google bina notice cut karta hai). **AI Studio pe apna actual quota verify karo.**
+- Gemini: **verified 20 RPD** for `gemini-2.5-flash` free tier (2026-07-31) — bohot kam originally assumed 250-1500 se. Google bina notice cut karta hai, is liye [aistudio.google.com](https://aistudio.google.com) pe apna current quota dobara verify karo agar ye stale lage.
 
 ---
 
