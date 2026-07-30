@@ -53,8 +53,14 @@ export default async function HomePage() {
   return (
     <main className="mx-auto max-w-md px-4">
       {/* Hero — compact: smaller display size than the wordmark on /login, tighter
-          line spacing, one eyebrow row instead of two stacked labels. */}
-      <section className="flex items-start justify-between gap-3 pt-4">
+          line spacing, one eyebrow row instead of two stacked labels. Home has no
+          TopBar, so it needs its own safe-area clearance for the status bar in
+          standalone PWA mode — stacked on top of the normal 16px gutter, not
+          instead of it (env(...) is 0 on non-notched phones). */}
+      <section
+        className="flex items-start justify-between gap-3"
+        style={{ paddingTop: "calc(env(safe-area-inset-top) + 16px)" }}
+      >
         <div className="min-w-0">
           <div className="t-micro text-fg-faint">{monthLabel}</div>
           <div className="mt-1.5 flex items-baseline gap-2">

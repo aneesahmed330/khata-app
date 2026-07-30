@@ -19,7 +19,11 @@ export default async function AddPage() {
 
   return (
     <main className="mx-auto max-w-md px-4">
-      <div className="flex items-center justify-between py-4">
+      {/* No TopBar on this page either — same safe-area clearance as Home. */}
+      <div
+        className="flex items-center justify-between pb-4"
+        style={{ paddingTop: "calc(env(safe-area-inset-top) + 16px)" }}
+      >
         <div>
           <div className="t-micro text-fg-faint">New entry</div>
           <h1 className="t-title mt-0.5">What happened?</h1>

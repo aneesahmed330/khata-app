@@ -50,11 +50,14 @@ export default async function TransactionPage({ params }: { params: { id: string
 
   return (
     <>
-      <header className="sticky top-0 z-20 border-b border-rule bg-surface/85 backdrop-blur-md">
+      <header
+        className="sticky top-0 z-20 border-b border-rule bg-surface/85 backdrop-blur-md"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
         <div className="mx-auto flex h-14 max-w-md items-center gap-2 px-4">
           <Link
             href="/history"
-            aria-label="Wapas"
+            aria-label="Back"
             className="-ml-2 flex size-9 items-center justify-center rounded-chip text-fg-muted transition-colors hover:bg-surface-lift hover:text-fg"
           >
             <ArrowLeft size={19} strokeWidth={1.75} aria-hidden />

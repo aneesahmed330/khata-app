@@ -10,7 +10,10 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen flex-col px-5">
-      <div className="flex justify-end pt-4">
+      <div
+        className="flex justify-end"
+        style={{ paddingTop: "calc(env(safe-area-inset-top) + 16px)" }}
+      >
         <ThemeToggle />
       </div>
 

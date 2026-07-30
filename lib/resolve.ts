@@ -10,7 +10,6 @@ import type { AccountType, CategoryType, CategoryDoc } from "./types";
 const FUZZY_THRESHOLD = 0.85;
 const MAX_NEW_SUBCATEGORIES_PER_DAY = 8;
 const MAX_NEW_ROOTS_PER_DAY = 2;
-const MAX_NEW_ACCOUNTS_PER_DAY = 3;
 
 function levenshtein(a: string, b: string): number {
   const dp: number[][] = Array.from({ length: a.length + 1 }, (_, i) =>
@@ -35,21 +34,15 @@ function similarity(a: string, b: string): number {
   return 1 - levenshtein(a, b) / maxLen;
 }
 
+// Only categories have a daily creation cap now — accounts never did an
+// abuse-prone auto-create path the way LLM-driven category proposals can.
 async function countTodayCreations(
   scope: UserScope,
-  collection: "categories" | "accounts",
   extraFilter: Record<string, unknown> = {},
 ): Promise<number> {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
-  if (collection === "categories") {
-    return scope.categories.countDocuments({
-      auto_created: true,
-      created_at: { $gte: startOfDay },
-      ...extraFilter,
-    } as never);
-  }
-  return scope.accounts.countDocuments({
+  return scope.categories.countDocuments({
     auto_created: true,
     created_at: { $gte: startOfDay },
     ...extraFilter,
@@ -157,7 +150,7 @@ export async function resolveOrCreateCategory(
   }
 
   const capCollection = isRootRequest ? MAX_NEW_ROOTS_PER_DAY : MAX_NEW_SUBCATEGORIES_PER_DAY;
-  const createdToday = await countTodayCreations(scope, "categories", {
+  const createdToday = await countTodayCreations(scope, {
     parent_id: isRootRequest ? null : { $ne: null },
   });
   if (createdToday >= capCollection) {
@@ -267,10 +260,12 @@ export async function resolveOrDeclareAccount(
     return { id: null, created: false, adjustment: null, proposal: { name, type, balance } };
   }
 
-  const createdToday = await countTodayCreations(scope, "accounts");
-  if (createdToday >= MAX_NEW_ACCOUNTS_PER_DAY) {
-    throw new Error("Daily limit reached for new accounts.");
-  }
+  // No daily cap here, unlike categories (§4.5's cap is about LLM-driven
+  // category sprawl from ambiguous parses). Declaring an account always
+  // requires an explicit user-stated balance and a one-time confirm chip —
+  // there's no equivalent runaway-creation path to guard against, and a solo
+  // user setting up several real bank/cash/wallet accounts in one sitting is
+  // normal, not abuse.
 
   // Insert at 0 and hand the opening balance back as an adjustment for the
   // caller to post. Writing `balance` directly here (as this used to) left the

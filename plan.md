@@ -286,7 +286,8 @@ Layer 1 create nahi kar sakti, to creation Gemini pe escalate hoti hai:
 **Pehli dafa "indrive" = 1 API call. Us call ke baad alias ban jata hai → har agli dafa "indrive" Layer 1 pakad leta hai = 0 calls.**
 
 ### 4.5 Safety guards
-- **Max 8 nayi subcategories / din**, **max 2 naye roots / din**, **max 3 naye accounts / din**
+- **Max 8 nayi subcategories / din**, **max 2 naye roots / din**
+- **Accounts pe koi daily cap nahi** (decision, 2026-07-31) — cap sirf LLM-driven category proposals ke liye tha (ambiguous parse se sprawl), account declaration hamesha explicit user-stated balance + one-time confirm chip se hoti hai, koi runaway path nahi. Solo user ek hi baithak mein apne saare real bank/cash/wallet accounts declare kar sakta hai.
 - `query_data` intent se **kabhi create nahi**
 - Name validation: 2–30 chars, control chars reject, emoji-only reject, trim + collapse whitespace
 - **Depth 2 enforce at write** — `parent_id` sirf aise category pe point kar sakta hai jiska `parent_id` null hai. Warna reject.
