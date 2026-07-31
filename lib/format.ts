@@ -25,6 +25,16 @@ export function formatPKR(amount: number): string {
   return negative ? `-${result}` : result;
 }
 
+/** 124500.4 -> "1,24,500". Whole rupees, for summary figures — KPI tiles and
+ *  the net-worth hero. Paisa are the ledger's business: a row is a record and
+ *  must reconcile to the paisa, but a tile is a rounded read of a total, and
+ *  the ".00" tail was pushing real digits out of the tile it sat in. */
+export function formatPKRWhole(amount: number): string {
+  const negative = amount < 0;
+  const grouped = groupIndian(String(Math.round(Math.abs(amount))));
+  return negative ? `-${grouped}` : grouped;
+}
+
 /** Same as formatPKR but with the Rs prefix for standalone display. */
 export function formatPKRWithSymbol(amount: number): string {
   return `Rs ${formatPKR(amount)}`;

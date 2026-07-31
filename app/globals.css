@@ -31,6 +31,16 @@
   --color-chart-in: var(--k-chart-in);
   --color-chart-out: var(--k-chart-out);
 
+  /* Liquidity ramp — the net-worth strip's three segments are NOT peer
+   * categories, they're one dimension ordered by how fast you can touch the
+   * money (cash > invested > owed to you). So it's an ordinal ramp: one hue,
+   * monotone lightness — not a categorical palette. Steps are validated per
+   * surface (dataviz validate_palette.js --ordinal): monotone L, adjacent
+   * ΔL >= 0.06, light end clears 2:1 on its own surface. */
+  --color-liq-1: var(--k-liq-1);
+  --color-liq-2: var(--k-liq-2);
+  --color-liq-3: var(--k-liq-3);
+
   --font-display: "Bricolage Grotesque", var(--font-bricolage), sans-serif;
   --font-ui: "Archivo", var(--font-archivo), sans-serif;
   --font-num: "Spline Sans Mono", var(--font-spline), ui-monospace, monospace;
@@ -69,6 +79,11 @@
   --k-chart-mag: #e8a33d;
   --k-chart-in: #3e9b78;
   --k-chart-out: #c2544a;
+
+  /* validated against surface-lift #152426 — all ordinal checks PASS */
+  --k-liq-1: #f0bd6e;
+  --k-liq-2: #dc9a33;
+  --k-liq-3: #9c6a1c;
 }
 
 /* ── paper (light) — first-class, not a flip. DESIGN.md §8 ────────────────────
@@ -104,6 +119,12 @@
   --k-chart-mag: #a8762c;
   --k-chart-in: #2f7057;
   --k-chart-out: #a8433a;
+
+  /* validated against surface-lift #f2f3ef — the dark ramp's light end only
+   * reaches 1.97:1 here, so paper gets its own darker steps, not a flip. */
+  --k-liq-1: #d19538;
+  --k-liq-2: #a86e1c;
+  --k-liq-3: #6f4410;
 }
 
 @media (prefers-color-scheme: light) {
@@ -207,6 +228,19 @@
     font-size: 17px;
     line-height: 1;
   }
+  /* KPI tile figure — mono, between .t-amount and .t-balance-compact. The band
+   * of tiles is the device that makes a dashboard read as a dashboard, and it
+   * needs its own step: .t-amount is too quiet to anchor a tile, .t-balance
+   * too loud to repeat four times across one row. */
+  .t-kpi {
+    font-family: var(--font-num);
+    /* 18px, not 21: at 414px three tiles give each ~97px of inner width, and a
+     * signed lakh figure in tabular mono overflows that above 18px. Measured,
+     * not guessed — 21px truncated 4 of 6 real tiles. */
+    font-size: 18px;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
   .t-title {
     font-family: var(--font-display);
     font-size: 20px;
@@ -229,6 +263,21 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
+
+  /* Chart marks use Tailwind's own generated `stroke-*` / `fill-*` / `bg-*`
+   * utilities (stroke-chart-mag, fill-fg-faint, bg-liq-1, …) rather than inline
+   * `style={{ stroke: var(--color-…) }}`.
+   *
+   * That is not a style preference — it's load-bearing. Tailwind v4 only emits
+   * the `@theme` custom properties that some generated utility actually
+   * references, so a token nothing classes against is pruned from the output.
+   * An inline `stroke: var(--color-chart-out)` against a pruned token resolves
+   * to nothing, which computes to `stroke: none`: the sparkline drew a correct
+   * and completely invisible path. Classing against the token keeps it alive by
+   * construction, so this failure can't come back.
+   *
+   * `stop-color` has no utility, so gradients still read `--k-*` directly —
+   * that layer is hand-written in :root and never pruned. */
 
   .no-scrollbar {
     scrollbar-width: none;

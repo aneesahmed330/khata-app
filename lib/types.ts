@@ -135,6 +135,11 @@ export interface LoanDoc {
   account_id: ObjectId;
   status: LoanStatus;
   due_date?: Date;
+  /** Set when a loan was closed without the remainder being repaid — forgiven,
+   *  rounded off, or settled outside the ledger. Kept so a settled loan can
+   *  still explain why its outstanding reached zero with no final payment. */
+  written_off?: number;
+  settled_at?: Date;
   created_at: Date;
 }
 

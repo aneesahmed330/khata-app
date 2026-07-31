@@ -22,6 +22,29 @@ export function areaPath(points: ChartPoint[], baselineY: number): string {
   return `${linePath(points)} L ${last.x} ${baselineY} L ${first.x} ${baselineY} Z`;
 }
 
+/** Rounded axis ceiling + evenly spaced ticks. A chart whose y-axis tops out at
+ *  the raw max ("1,347") reads as noise; snapping to 1/2/2.5/5 x a power of ten
+ *  gives ticks a reader can do arithmetic against. Returns the ticks ascending,
+ *  with the last one being the axis ceiling. */
+export function niceTicks(max: number, count = 3): number[] {
+  if (!Number.isFinite(max) || max <= 0) return [0];
+  const rough = max / count;
+  const mag = 10 ** Math.floor(Math.log10(rough));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= rough) ?? 10 * mag;
+  const ticks: number[] = [];
+  for (let v = 0; v <= max + step / 2; v += step) ticks.push(v);
+  return ticks;
+}
+
+/** Compact axis labels — "12k", "1.4m". Axis ticks are for orders of magnitude,
+ *  not exact figures; the tooltip and the table carry the precise number. */
+export function compactNumber(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(abs % 1_000_000 === 0 ? 0 : 1)}m`;
+  if (abs >= 1_000) return `${(v / 1_000).toFixed(abs % 1_000 === 0 ? 0 : 1)}k`;
+  return String(Math.round(v));
+}
+
 /** domain -> range mapper. y ranges are typically passed inverted
  *  ([heightMinusPad, pad]) since a larger data value should sit higher on
  *  screen, i.e. a smaller pixel y. */

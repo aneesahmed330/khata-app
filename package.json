@@ -12,7 +12,8 @@
     "seed:examples": "tsx scripts/seed-examples.ts",
     "sync:taxonomy": "tsx scripts/sync-taxonomy.ts",
     "repair:entries": "tsx scripts/repair-entries.ts",
-    "restore:openings": "tsx scripts/restore-openings.ts"
+    "restore:openings": "tsx scripts/restore-openings.ts",
+    "repair:loans": "tsx scripts/repair-loans.ts"
   },
   "dependencies": {
     "@google/genai": "^0.14.0",

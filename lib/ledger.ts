@@ -141,6 +141,18 @@ export async function postTransaction(
             },
             { session },
           );
+          // Back-link the opening transaction to the loan it just opened.
+          // Without this the row that STARTS a loan carries no loan_id (the
+          // loan doesn't exist yet at insert time), which broke two things:
+          // reverseTransaction guards on txn.loan_id, so deleting that row
+          // refunded the account but left the loan standing at full
+          // outstanding forever; and "every transaction for this loan" could
+          // never see the opening entry. Same session, so it stays atomic.
+          await transactions.updateOne(
+            { _id: txnId, user_id: scope.userId },
+            { $set: { loan_id: newLoanId } },
+            { session },
+          );
           loanId = newLoanId;
           loanOutstanding = input.amount;
         }
@@ -261,11 +273,18 @@ export async function reverseTransaction(scope: UserScope, transactionId: Object
       if (txn.loan_id) {
         const delta =
           txn.type === "loan_given" || txn.type === "loan_taken" ? -txn.amount : txn.amount;
-        await loans.updateOne(
+        const after = await loans.findOneAndUpdate(
           { _id: txn.loan_id, user_id: scope.userId },
           { $inc: { outstanding: delta, principal: txn.type.startsWith("loan_") ? delta : 0 }, $set: { status: "open" } },
-          { session },
+          { session, returnDocument: "after" },
         );
+        // Undoing the entry that opened the loan leaves nothing behind it —
+        // principal 0, outstanding 0. Keeping that row would put a permanent
+        // "0.00" loan in the list that can never be settled or removed,
+        // so the loan goes with its last transaction.
+        if (after && after.principal <= 0) {
+          await loans.deleteOne({ _id: txn.loan_id, user_id: scope.userId }, { session });
+        }
       }
 
       if (txn.holding_id) {
