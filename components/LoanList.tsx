@@ -35,8 +35,9 @@ export function LoanList({ loans }: { loans: LoanSummary[] }) {
           <Link
             key={loan.id}
             href={`/loans/${loan.id}`}
+            style={{ "--i": i } as React.CSSProperties}
             className={clsx(
-              "block px-3 py-3 transition-colors hover:bg-surface",
+              "anim-stagger block px-3 py-3 transition-colors hover:bg-surface",
               i > 0 && "border-t border-rule-soft",
             )}
           >

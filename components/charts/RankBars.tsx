@@ -29,7 +29,8 @@ export function RankBars({ rows, total }: { rows: RankRow[]; total: number }) {
         return (
           <div
             key={row.id}
-            className={clsx("py-2.5", i > 0 && "border-t border-rule-soft")}
+            style={{ "--i": i } as React.CSSProperties}
+            className={clsx("anim-stagger py-2.5", i > 0 && "border-t border-rule-soft")}
           >
             <div className="mb-1.5 flex items-baseline justify-between gap-3">
               <span className="t-body min-w-0 flex-1 truncate">{row.name}</span>

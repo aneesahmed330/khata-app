@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Mic, Square, ArrowRight, Check, X, CircleAlert, Loader2, Pencil } from "lucide-react";
+import { Mic, ArrowRight, Check, X, CircleAlert, Loader2, Pencil } from "lucide-react";
 import clsx from "clsx";
 import type { ParsedIntent, SubAction } from "@/lib/schemas";
 import { useRecorder, type Recording } from "@/lib/recorder";
@@ -15,6 +15,7 @@ import {
   type NeedsConfirmation,
   type CommitResponse,
 } from "@/components/ReceiptView";
+import { RecordingPanel } from "@/components/RecordingPanel";
 
 // Client-side mirror of the server response shape — kept local rather than
 // importing lib/schemas.ts's server-only siblings, which pull in the mongodb
@@ -225,6 +226,8 @@ export function AddForm({ accounts }: { accounts: { id: string; name: string }[]
       {recorder.recording ? (
         <RecordingPanel
           elapsed={recorder.elapsed}
+          maxSeconds={recorder.maxSeconds}
+          getLevel={recorder.getLevel}
           onStop={recorder.stop}
           onCancel={recorder.cancel}
         />
@@ -331,50 +334,6 @@ export function AddForm({ accounts }: { accounts: { id: string; name: string }[]
           </div>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function RecordingPanel({
-  elapsed,
-  onStop,
-  onCancel,
-}: {
-  elapsed: number;
-  onStop: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div className="anim-fade flex flex-col items-center rounded-sheet border border-accent bg-surface-lift px-6 py-9">
-      <div className="relative mb-5 flex size-16 items-center justify-center">
-        <span aria-hidden className="anim-pulse absolute inset-0 rounded-full border border-accent" />
-        <span className="flex size-16 items-center justify-center rounded-full bg-accent text-on-accent">
-          <Mic size={24} strokeWidth={2} aria-hidden />
-        </span>
-      </div>
-
-      <p className="t-body mb-1" aria-live="polite">
-        Listening…
-      </p>
-      <p className="tnum font-num text-[13px] text-fg-muted">
-        0:{String(elapsed).padStart(2, "0")}
-      </p>
-
-      <button
-        type="button"
-        onClick={onStop}
-        className="mt-6 flex w-full items-center justify-center gap-2 rounded-chip bg-accent py-3.5 text-[15px] font-medium text-on-accent transition-transform duration-150 active:scale-[0.98]"
-      >
-        <Square size={15} strokeWidth={2.5} aria-hidden />
-        Done
-      </button>
-      <button
-        type="button"
-        onClick={onCancel}
-        className="t-label mt-3 text-fg-faint underline decoration-rule underline-offset-4 transition-colors hover:text-fg-muted"
-      >
-        Cancel
-      </button>
     </div>
   );
 }

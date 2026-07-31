@@ -24,8 +24,9 @@ export function HoldingList({ holdings }: { holdings: HoldingSummary[] }) {
           <Link
             key={h.id}
             href={`/investments/${h.id}`}
+            style={{ "--i": i } as React.CSSProperties}
             className={clsx(
-              "flex items-center gap-2.5 px-3 py-2.5 transition-colors hover:bg-surface-lift/60",
+              "anim-stagger flex items-center gap-2.5 px-3 py-2.5 transition-colors hover:bg-surface-lift/60",
               i > 0 && "border-t border-rule-soft",
             )}
           >
