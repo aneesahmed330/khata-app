@@ -1,63 +1,65 @@
 import { getSession } from "@/lib/auth";
 import { forUser } from "@/lib/scope";
-import { DateRule } from "@/components/DateRule";
-import { LedgerRow } from "@/components/LedgerRow";
+import { DateFilterBar } from "@/components/DateFilterBar";
+import { HistoryList } from "@/components/HistoryList";
 import { EmptyNote } from "@/components/EmptyState";
 import { TopBar } from "@/components/TopBar";
 import { groupTransactionsByDay } from "@/lib/ledger-view";
+import { fetchLedgerPage, fetchLedgerTotals } from "@/lib/ledger-query";
 import { formatPKR } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-// plan.md's filter bar (category / account / person / tag) and infinite scroll
-// are still Phase 4 — this is the last 200 entries, unfiltered, with per-day
-// outflow totals on the date rules.
-export default async function HistoryPage() {
+export default async function HistoryPage({
+  searchParams,
+}: {
+  searchParams: { from?: string; to?: string };
+}) {
   const session = await getSession();
   if (!session) return null;
 
+  const from = searchParams.from || undefined;
+  const to = searchParams.to || undefined;
+
   const scope = await forUser(session.userId);
-  const [accounts, categories, transactions] = await Promise.all([
+  const [accounts, categories, people, holdings, page, totals] = await Promise.all([
     scope.accounts.find({}).toArray(),
     scope.categories.find({}).toArray(),
-    scope.transactions
-      .find({ deleted_at: { $exists: false } }, { sort: { date: -1, _id: -1 }, limit: 200 })
-      .toArray(),
+    scope.people.find({}).toArray(),
+    scope.holdings.find({}).toArray(),
+    fetchLedgerPage(scope, { from, to, limit: 30 }),
+    fetchLedgerTotals(scope, { from, to }),
   ]);
 
-  const groups = groupTransactionsByDay(transactions, accounts, categories);
-  const totalOutflow = groups.reduce((sum, g) => sum + g.outflow, 0);
+  const groups = groupTransactionsByDay(page.transactions, accounts, categories, people, holdings);
 
   return (
     <>
-      <TopBar title="History" eyebrow={`${transactions.length} entries`} />
+      <TopBar
+        title="History"
+        eyebrow={`${totals.count} entr${totals.count === 1 ? "y" : "ies"}`}
+      />
       <main className="mx-auto max-w-md px-4 pt-4">
+        <DateFilterBar from={from} to={to} />
+
         {groups.length === 0 ? (
-          <EmptyNote>No entries yet. Tap + below.</EmptyNote>
+          <EmptyNote>
+            {from || to ? "No entries in this range." : "No entries yet. Tap + below."}
+          </EmptyNote>
         ) : (
           <>
             <div className="mb-2 flex items-baseline justify-between border-b border-rule pb-3">
               <span className="t-micro text-fg-faint">Total spent</span>
-              <span className="tnum font-num text-[15px]">−{formatPKR(totalOutflow)}</span>
+              <span className="tnum font-num text-[15px]">−{formatPKR(totals.outflow)}</span>
             </div>
 
-            {groups.map((group) => (
-              <div key={group.label}>
-                <DateRule
-                  label={group.label}
-                  total={group.outflow > 0 ? `−${formatPKR(group.outflow)}` : undefined}
-                />
-                {group.rows.map((row) => (
-                  <LedgerRow key={row.id} row={row} redirectTo="/history" />
-                ))}
-              </div>
-            ))}
-
-            {transactions.length === 200 ? (
-              <p className="t-label py-6 text-center text-fg-faint">
-                Showing the last 200 entries. Filtering is coming soon.
-              </p>
-            ) : null}
+            <HistoryList
+              key={`${from ?? ""}_${to ?? ""}`}
+              initialGroups={groups}
+              initialNextCursor={page.nextCursor}
+              from={from}
+              to={to}
+            />
           </>
         )}
       </main>

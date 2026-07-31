@@ -2,17 +2,24 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { forUser } from "@/lib/scope";
-import { DateRule } from "@/components/DateRule";
-import { LedgerRow } from "@/components/LedgerRow";
 import { AccountGrid } from "@/components/AccountGrid";
 import { CountUpAmount } from "@/components/CountUpAmount";
 import { StatPair } from "@/components/StatTile";
-import { EmptyLedger } from "@/components/EmptyState";
+import { HoldingList, type HoldingSummary } from "@/components/HoldingList";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { groupTransactionsByDay } from "@/lib/ledger-view";
 import { formatPKR } from "@/lib/format";
+import type { InvestmentType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+const TYPE_LABEL: Record<InvestmentType, string> = {
+  stock: "Stock",
+  mutual_fund: "Mutual fund",
+  gold: "Gold",
+  crypto: "Crypto",
+  real_estate: "Real estate",
+  other: "Other",
+};
 
 export default async function HomePage() {
   const session = await getSession();
@@ -23,12 +30,9 @@ export default async function HomePage() {
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
-  const [accounts, categories, transactions, monthTotals] = await Promise.all([
+  const [accounts, openHoldings, monthTotals] = await Promise.all([
     scope.accounts.find({ archived: { $ne: true } }).toArray(),
-    scope.categories.find({}).toArray(),
-    scope.transactions
-      .find({ deleted_at: { $exists: false } }, { sort: { date: -1 }, limit: 25 })
-      .toArray(),
+    scope.holdings.find({ status: "open" }).toArray(),
     scope.transactions
       .aggregate<{ _id: string; total: number }>([
         {
@@ -47,7 +51,20 @@ export default async function HomePage() {
   const spent = monthTotals.find((r) => r._id === "expense")?.total ?? 0;
   const earned = monthTotals.find((r) => r._id === "income")?.total ?? 0;
 
-  const grouped = groupTransactionsByDay(transactions, accounts, categories);
+  const holdings: HoldingSummary[] = openHoldings.map((h) => ({
+    id: h._id.toHexString(),
+    name: h.name,
+    typeLabel: TYPE_LABEL[h.type],
+    investedTotal: h.invested_total,
+    currentValue: h.current_value,
+    quantity: h.quantity,
+    quantityUnit: h.quantity_unit,
+  }));
+  const totalInvested = holdings.reduce((sum, h) => sum + h.investedTotal, 0);
+  const totalCurrentValue = holdings.reduce((sum, h) => sum + (h.currentValue ?? h.investedTotal), 0);
+  const gain = totalCurrentValue - totalInvested;
+  const hasAnyCurrentValue = holdings.some((h) => h.currentValue !== undefined);
+
   const monthLabel = new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 
   return (
@@ -95,38 +112,46 @@ export default async function HomePage() {
         </section>
       ) : null}
 
-      <section className="mt-6">
-        <div className="mb-1 flex items-baseline justify-between">
-          <h2 className="t-micro text-fg-faint">Activity</h2>
-          {grouped.length > 0 ? (
+      {/* This is the dashboard — listings live on /history, loan stats on
+          /loans. Home only ever shows summary state, never a feed. */}
+      {holdings.length > 0 ? (
+        <section className="mt-6">
+          <div className="mb-2 flex items-baseline justify-between">
+            <h2 className="t-micro text-fg-faint">Investments</h2>
             <Link
-              href="/history"
+              href="/investments"
               className="flex items-center gap-0.5 text-[12px] text-fg-muted transition-colors hover:text-fg"
             >
               View all
               <ChevronRight size={13} strokeWidth={2} aria-hidden />
             </Link>
-          ) : null}
-        </div>
-
-        {grouped.length === 0 ? (
-          <div className="mt-4">
-            <EmptyLedger />
           </div>
-        ) : (
-          grouped.map((group) => (
-            <div key={group.label}>
-              <DateRule
-                label={group.label}
-                total={group.outflow > 0 ? `−${formatPKR(group.outflow)}` : undefined}
-              />
-              {group.rows.map((row) => (
-                <LedgerRow key={row.id} row={row} redirectTo="/" />
-              ))}
-            </div>
-          ))
-        )}
-      </section>
+          <div className="mb-2">
+            <StatPair
+              outLabel="Invested"
+              outValue={totalInvested}
+              inLabel={hasAnyCurrentValue ? "Current value" : "Invested"}
+              inValue={totalCurrentValue}
+            />
+          </div>
+          {hasAnyCurrentValue ? (
+            <p className={`t-label mb-2 ${gain >= 0 ? "text-in" : "text-out"}`}>
+              {gain >= 0 ? "+" : ""}
+              {formatPKR(gain)} overall
+            </p>
+          ) : null}
+          <HoldingList holdings={holdings} />
+        </section>
+      ) : (
+        <section className="mt-6">
+          <Link
+            href="/investments/new"
+            className="flex items-center justify-center rounded-chip border border-rule py-3 text-[14px] text-fg-muted transition-colors hover:border-fg-faint hover:text-fg"
+          >
+            Start tracking your investments
+          </Link>
+        </section>
+      )}
     </main>
   );
 }

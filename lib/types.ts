@@ -12,13 +12,18 @@ export type TxnType =
   | "loan_taken"
   | "repayment_in"
   | "repayment_out"
-  | "adjustment";
+  | "adjustment"
+  | "investment_buy"
+  | "investment_sell"
+  | "dividend";
 // "llm_audio" is tracked separately from "llm" so the accuracy of the speech
 // path can be measured against the text path later — they fail differently.
 export type TxnSource = "dict" | "llm" | "llm_audio" | "manual" | "recurring" | "adjustment";
 export type InputMode = "text" | "voice";
 export type LoanDirection = "given" | "taken";
 export type LoanStatus = "open" | "settled";
+export type InvestmentType = "stock" | "mutual_fund" | "gold" | "crypto" | "real_estate" | "other";
+export type HoldingStatus = "open" | "closed";
 
 export interface UserDoc {
   _id: ObjectId;
@@ -97,10 +102,18 @@ export interface TransactionDoc {
   note?: string;
   category_id?: ObjectId;
   root_category_id?: ObjectId;
-  account_id: ObjectId;
+  // Optional ONLY for investment_buy/investment_sell/dividend — every other
+  // type always has a funding account. Unset means "money moved, source
+  // account not recorded" (the user genuinely doesn't remember) — it never
+  // touches any account's balance, by design (lib/ledger.ts).
+  account_id?: ObjectId;
   to_account_id?: ObjectId;
   person_id?: ObjectId;
   loan_id?: ObjectId;
+  holding_id?: ObjectId;
+  // Shares/grams/units moved by an investment_buy or investment_sell — always
+  // positive, same convention as `amount`; direction comes from `type`.
+  quantity_delta?: number;
   tag_ids: ObjectId[];
   date: Date;
   raw_text?: string;
@@ -122,6 +135,26 @@ export interface LoanDoc {
   account_id: ObjectId;
   status: LoanStatus;
   due_date?: Date;
+  created_at: Date;
+}
+
+export interface HoldingDoc {
+  _id: ObjectId;
+  user_id: ObjectId;
+  name: string;
+  symbol?: string;
+  type: InvestmentType;
+  quantity: number;
+  // Free text since it varies by type ("shares", "grams", "tola", "units") —
+  // never assumed, always what the user typed when creating the holding.
+  quantity_unit?: string;
+  invested_total: number;
+  dividends_received: number;
+  // No live price feed in this app — purely a manual snapshot the user
+  // updates themselves (a separate PSX data project owns real price fetching).
+  current_value?: number;
+  current_value_updated_at?: Date;
+  status: HoldingStatus;
   created_at: Date;
 }
 

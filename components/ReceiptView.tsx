@@ -25,6 +25,10 @@ export interface NeedsConfirmation {
   proposal?: { name: string; type?: string; parentName?: string | null; balance?: number };
   loanContext?: { person: string; outstanding: number | null };
   missing?: string[];
+  /** Only set when reason is "account" for a transfer, which has TWO account
+   *  slots — tells the client which field the picked chip should fill.
+   *  Absent means "account_id", same as every other intent. */
+  field?: "account_id" | "to_account_id";
   /** Set only when the parent message was intent: "multi" — which of
    *  parsed.actions this confirmation is about. */
   actionIndex?: number;

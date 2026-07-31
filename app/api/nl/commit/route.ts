@@ -447,8 +447,24 @@ async function resolveTransfer(
   parsed: ParsedIntent,
   ctx: ResolveCtx,
 ): Promise<ResolveOutcome> {
-  if (!parsed.amount || !parsed.account_id || !parsed.to_account_id) {
-    return { ok: false, status: 400, body: { error: "amount, account_id and to_account_id are required" } };
+  // A transfer with no clear amount isn't a "which account" question — the
+  // parse itself is unreliable, so this is a real error, not a confirmable gap.
+  if (!parsed.amount) {
+    return { ok: false, status: 400, body: { error: "Couldn't tell the amount for this transfer." } };
+  }
+  // Missing accounts, unlike a missing amount, ARE resolvable with a chip —
+  // same pattern as resolveExpenseOrIncome/resolveLoanAction. Gemini leaves
+  // one or both unset whenever it can't confidently match an account name in
+  // the text (plan.md's "never guess" rule), which used to hard-400 here
+  // instead of asking, unlike every other intent.
+  if (!parsed.account_id) {
+    return { ok: false, status: 200, body: { needsConfirmation: true, reason: "account", field: "account_id", missing: ["account_id"] } };
+  }
+  if (!parsed.to_account_id) {
+    return { ok: false, status: 200, body: { needsConfirmation: true, reason: "account", field: "to_account_id", missing: ["to_account_id"] } };
+  }
+  if (parsed.account_id === parsed.to_account_id) {
+    return { ok: false, status: 400, body: { error: "Transfer needs two different accounts." } };
   }
   const [from, to] = await Promise.all([
     scope.accounts.findOne({ _id: new ObjectId(parsed.account_id) }),

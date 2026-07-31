@@ -21,7 +21,8 @@ Fill in `.env.local`:
 | Variable | Kahan se milega |
 |---|---|
 | `MONGODB_URI` | [MongoDB Atlas](https://cloud.mongodb.com) → free M0 cluster banao → Database → Connect → Drivers → connection string copy karo. Apna username/password/cluster daalo, `/expense-tracker` database name rakho. |
-| `GEMINI_API_KEY` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) — free tier, koi card nahi chahiye |
+| `GEMINI_API_KEY` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) — free tier, koi card nahi chahiye. **Verified quota: 20 requests/din** (2026-07-31) — assume kiya gaya 250-1500 se bohot kam nikla. |
+| `GROQ_API_KEY` | [console.groq.com/keys](https://console.groq.com/keys) — free, koi card nahi chahiye. Gemini ka quota khatam hone pe text parsing (voice nahi) isi pe fallback hoti hai — ~1,000 requests/din. |
 | `JWT_SECRET` | `openssl rand -base64 32` chalao, output paste karo |
 | `CRON_SECRET` | koi bhi random string — Vercel Cron deploy karte waqt yehi value env var mein set karo |
 | `SEED_USER_EMAIL` / `SEED_USER_PASSWORD` / `SEED_USER_NAME` | tumhara login — pehla (abhi ke liye sirf) user isi se banega |
@@ -69,7 +70,7 @@ npm run dev
 
 - **Auth** — login-only (JWT + bcrypt), signup UI nahi hai abhi (plan.md §12.F)
 - **Layer 1** — deterministic parser: amount (`350`, `3.5k`, `dhai hazaar`, `saarhay teen sau`, Urdu digits), date (`aj`/`kal`/`parso`), intent keywords, alias dictionary. Confidence ≥ 0.85 → seedha commit, koi Gemini call nahi.
-- **Layer 2** — Gemini (`gemini-2.5-flash` by default, `GEMINI_MODEL` env se override) + `$text` retrieval (top-15 similar examples) + structured JSON output.
+- **Layer 2** — Gemini (`gemini-2.5-flash` by default, `GEMINI_MODEL` env se override) + `$text` retrieval (top-15 similar examples) + structured JSON output. Gemini ka **20 RPD** quota khatam ho to text parsing khud-ba-khud **Groq** (`openai/gpt-oss-20b`, ~1,000 RPD) pe fallback ho jati hai — same Zod schema, `lib/llm.ts`'s `stripNulls()` Groq ke strict-mode nulls ko Gemini jaisi shape mein convert karta hai. Voice ka koi fallback nahi (Groq audio samajhta nahi) — dono quota khatam ho to `LLMQuotaError` (manual entry / Layer 1 pe degrade).
 - **`resolveOrCreate()` gate** — categories/subcategories/tags/people/accounts kabhi silently invent nahi hote; ek dafa confirm chip, phir hamesha auto-use.
 - **Declare account** — `"Meezan mein 78000 pari hai"` → naya account banega, ya existing ka balance `adjustment` transaction se reconcile hoga (overwrite nahi).
 - **Loans** — `lend_money`/`borrow_money`, open loan ho to naya/append/repayment ka 3-way chip.

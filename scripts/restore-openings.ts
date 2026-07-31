@@ -53,7 +53,7 @@ async function main() {
       let summed = 0;
       let hasOpening = false;
       for (const t of txns) {
-        if (t.account_id.equals(acc._id)) {
+        if (t.account_id?.equals(acc._id)) {
           summed += ACCOUNT_SIGN[t.type] * t.amount;
           if (t.type === "adjustment") hasOpening = true;
         }
@@ -133,7 +133,7 @@ async function main() {
     for (const acc of accounts) {
       let summed = 0;
       for (const t of txns) {
-        if (t.account_id.equals(acc._id)) summed += ACCOUNT_SIGN[t.type] * t.amount;
+        if (t.account_id?.equals(acc._id)) summed += ACCOUNT_SIGN[t.type] * t.amount;
         if (t.to_account_id?.equals(acc._id)) summed += t.amount;
       }
       const ok = summed === acc.balance;

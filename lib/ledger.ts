@@ -4,7 +4,7 @@
 import { ObjectId, type ClientSession } from "mongodb";
 import { getDb, getClient } from "./db";
 import type { UserScope } from "./scope";
-import type { TxnType, TxnSource, InputMode, TransactionDoc, LoanDoc } from "./types";
+import type { TxnType, TxnSource, InputMode, TransactionDoc, LoanDoc, HoldingDoc } from "./types";
 
 export interface PostTransactionInput {
   type: TxnType;
@@ -13,10 +13,15 @@ export interface PostTransactionInput {
   note?: string;
   category_id?: ObjectId;
   root_category_id?: ObjectId;
-  account_id: ObjectId;
+  // Optional only for investment_buy/investment_sell/dividend — see
+  // TransactionDoc.account_id. Every other type must still supply one;
+  // callers enforce that themselves (this function trusts what it's given).
+  account_id?: ObjectId;
   to_account_id?: ObjectId;
   person_id?: ObjectId;
   loan_id?: ObjectId; // set when appending to / repaying an existing loan
+  holding_id?: ObjectId; // set for investment_buy/investment_sell/dividend
+  quantity_delta?: number; // shares/grams/units for investment_buy/investment_sell — always positive
   tag_ids?: ObjectId[];
   date: Date;
   raw_text?: string;
@@ -36,6 +41,9 @@ export const ACCOUNT_SIGN: Record<TxnType, number> = {
   repayment_in: 1, // someone paid YOU back
   repayment_out: -1, // you paid someone back
   adjustment: 1, // amount is already the signed delta
+  investment_buy: -1, // money left your account into the holding
+  investment_sell: 1, // proceeds landed back in your account
+  dividend: 1, // payout landed in your account
 };
 
 export interface PostedTransaction {
@@ -60,6 +68,7 @@ export async function postTransaction(
       const transactions = db.collection<TransactionDoc>("transactions");
       const accounts = db.collection("accounts");
       const loans = db.collection<LoanDoc>("loans");
+      const holdings = db.collection<HoldingDoc>("holdings");
 
       await transactions.insertOne(
         {
@@ -75,6 +84,8 @@ export async function postTransaction(
           to_account_id: input.to_account_id,
           person_id: input.person_id,
           loan_id: input.loan_id,
+          holding_id: input.holding_id,
+          quantity_delta: input.quantity_delta,
           tag_ids: input.tag_ids ?? [],
           date: input.date,
           raw_text: input.raw_text,
@@ -87,12 +98,14 @@ export async function postTransaction(
         { session },
       );
 
-      const sign = ACCOUNT_SIGN[input.type];
-      await accounts.updateOne(
-        { _id: input.account_id, user_id: scope.userId },
-        { $inc: { balance: sign * input.amount } },
-        { session },
-      );
+      if (input.account_id) {
+        const sign = ACCOUNT_SIGN[input.type];
+        await accounts.updateOne(
+          { _id: input.account_id, user_id: scope.userId },
+          { $inc: { balance: sign * input.amount } },
+          { session },
+        );
+      }
       if (input.to_account_id) {
         await accounts.updateOne(
           { _id: input.to_account_id, user_id: scope.userId },
@@ -119,7 +132,10 @@ export async function postTransaction(
               direction: input.type === "loan_given" ? "given" : "taken",
               principal: input.amount,
               outstanding: input.amount,
-              account_id: input.account_id,
+              // Loans always have a funding account — only investment_buy/
+              // sell/dividend ever omit one, and this branch only runs for
+              // loan_given/loan_taken.
+              account_id: input.account_id!,
               status: "open",
               created_at: new Date(),
             },
@@ -144,6 +160,40 @@ export async function postTransaction(
             { session },
           );
           loanOutstanding = 0;
+        }
+      }
+
+      if (input.holding_id) {
+        if (input.type === "investment_buy" || input.type === "investment_sell") {
+          const investedDelta = input.type === "investment_buy" ? input.amount : -input.amount;
+          const quantityDelta =
+            (input.type === "investment_buy" ? 1 : -1) * (input.quantity_delta ?? 0);
+          const updated = await holdings.findOneAndUpdate(
+            { _id: input.holding_id, user_id: scope.userId },
+            { $inc: { invested_total: investedDelta, quantity: quantityDelta } },
+            { session, returnDocument: "after" },
+          );
+          // Selling out fully closes the holding (mirrors loans' "settled");
+          // buying back into a closed holding reopens it.
+          if (updated && input.type === "investment_sell" && updated.quantity <= 0) {
+            await holdings.updateOne(
+              { _id: input.holding_id, user_id: scope.userId },
+              { $set: { status: "closed", quantity: 0 } },
+              { session },
+            );
+          } else if (updated && input.type === "investment_buy" && updated.status === "closed") {
+            await holdings.updateOne(
+              { _id: input.holding_id, user_id: scope.userId },
+              { $set: { status: "open" } },
+              { session },
+            );
+          }
+        } else if (input.type === "dividend") {
+          await holdings.updateOne(
+            { _id: input.holding_id, user_id: scope.userId },
+            { $inc: { dividends_received: input.amount } },
+            { session },
+          );
         }
       }
 
@@ -184,6 +234,7 @@ export async function reverseTransaction(scope: UserScope, transactionId: Object
       const transactions = db.collection<TransactionDoc>("transactions");
       const accounts = db.collection("accounts");
       const loans = db.collection<LoanDoc>("loans");
+      const holdings = db.collection<HoldingDoc>("holdings");
 
       const txn = await transactions.findOne(
         { _id: transactionId, user_id: scope.userId },
@@ -191,12 +242,14 @@ export async function reverseTransaction(scope: UserScope, transactionId: Object
       );
       if (!txn || txn.deleted_at) return;
 
-      const sign = ACCOUNT_SIGN[txn.type];
-      await accounts.updateOne(
-        { _id: txn.account_id, user_id: scope.userId },
-        { $inc: { balance: -sign * txn.amount } },
-        { session },
-      );
+      if (txn.account_id) {
+        const sign = ACCOUNT_SIGN[txn.type];
+        await accounts.updateOne(
+          { _id: txn.account_id, user_id: scope.userId },
+          { $inc: { balance: -sign * txn.amount } },
+          { session },
+        );
+      }
       if (txn.to_account_id) {
         await accounts.updateOne(
           { _id: txn.to_account_id, user_id: scope.userId },
@@ -213,6 +266,24 @@ export async function reverseTransaction(scope: UserScope, transactionId: Object
           { $inc: { outstanding: delta, principal: txn.type.startsWith("loan_") ? delta : 0 }, $set: { status: "open" } },
           { session },
         );
+      }
+
+      if (txn.holding_id) {
+        if (txn.type === "investment_buy" || txn.type === "investment_sell") {
+          const investedDelta = txn.type === "investment_buy" ? -txn.amount : txn.amount;
+          const quantityDelta = (txn.type === "investment_buy" ? -1 : 1) * (txn.quantity_delta ?? 0);
+          await holdings.updateOne(
+            { _id: txn.holding_id, user_id: scope.userId },
+            { $inc: { invested_total: investedDelta, quantity: quantityDelta }, $set: { status: "open" } },
+            { session },
+          );
+        } else if (txn.type === "dividend") {
+          await holdings.updateOne(
+            { _id: txn.holding_id, user_id: scope.userId },
+            { $inc: { dividends_received: -txn.amount } },
+            { session },
+          );
+        }
       }
 
       await transactions.updateOne(
@@ -277,6 +348,11 @@ export async function updateTransaction(
       if ((amountChanged || accountChanged) && txn.to_account_id) {
         throw new Error(
           "A transfer's amount or account can't be edited — delete and re-enter instead.",
+        );
+      }
+      if ((amountChanged || accountChanged) && txn.holding_id) {
+        throw new Error(
+          "An investment entry's amount or account can't be edited — delete and re-enter instead.",
         );
       }
 

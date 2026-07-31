@@ -34,6 +34,9 @@ const TYPE_LABEL: Record<TxnType, string> = {
   repayment_out: "Repayment made",
   transfer: "Transfer",
   adjustment: "Balance adjustment",
+  investment_buy: "Invested",
+  investment_sell: "Sold",
+  dividend: "Dividend",
 };
 
 const SOURCE_LABEL: Record<TxnSource, string> = {
@@ -125,6 +128,11 @@ export function TxnEditForm({
               data.financialsLocked && "cursor-not-allowed opacity-60",
             )}
           >
+            {/* Investment entries can be logged with no funding account
+                (plan.md: the user genuinely didn't note it at the time) —
+                without this, the select would silently show the first real
+                account, implying one that was never actually recorded. */}
+            {!data.accountId ? <option value="">Not specified</option> : null}
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
@@ -141,8 +149,9 @@ export function TxnEditForm({
         {data.financialsLocked ? (
           <p className="t-label flex items-start gap-2 text-fg-muted">
             <Lock size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" aria-hidden />
-            A loan/transfer entry&apos;s amount or account can&apos;t be edited — the
-            loan balance would also need to change. Delete and re-enter instead.
+            A loan, transfer, or investment entry&apos;s amount or account can&apos;t be
+            edited — the linked balance would also need to change. Delete and
+            re-enter instead.
           </p>
         ) : null}
 

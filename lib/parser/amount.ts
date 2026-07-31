@@ -121,3 +121,17 @@ export function parseAmount(text: string): number | null {
   const normalized = normalizeAsrDigitLookalikes(normalizeUrduDigits(text));
   return parseDigitForm(normalized) ?? parseWordForm(normalized);
 }
+
+/** How many distinct amounts are mentioned — not just whether one parses.
+ *  Layer 1 only ever extracts the FIRST amount it finds, so a sentence with
+ *  two ("indrive ky 150 diya... sohaib na 75 dena ha") would otherwise commit
+ *  confidently on half the sentence and silently drop the rest. Date digits
+ *  ("5 tareekh") are excluded — they aren't a second amount. */
+export function countAmountMentions(text: string): number {
+  const normalized = normalizeAsrDigitLookalikes(normalizeUrduDigits(text));
+  const matches = [...normalized.matchAll(/\d+(?:\.\d+)?/g)];
+  return matches.filter((m) => {
+    const after = normalized.slice(m.index + m[0].length).trimStart().toLowerCase();
+    return !after.startsWith("tareekh");
+  }).length;
+}

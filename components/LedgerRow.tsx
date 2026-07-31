@@ -9,6 +9,9 @@ import {
   ArrowLeft,
   ArrowLeftRight,
   Scale,
+  TrendingUp,
+  TrendingDown,
+  Coins,
   Trash2,
   Check,
   X,
@@ -28,6 +31,9 @@ const ICON: Record<TxnType, typeof ArrowDown> = {
   repayment_out: ArrowRight,
   transfer: ArrowLeftRight,
   adjustment: Scale,
+  investment_buy: TrendingUp,
+  investment_sell: TrendingDown,
+  dividend: Coins,
 };
 
 // Fallback title per type, used when a row has no `item`. Without this every
@@ -42,6 +48,9 @@ const TYPE_LABEL: Record<TxnType, string> = {
   repayment_out: "Repayment made",
   transfer: "Transfer",
   adjustment: "Balance adjustment",
+  investment_buy: "Invested",
+  investment_sell: "Sold",
+  dividend: "Dividend",
 };
 
 export interface LedgerRowData {
@@ -51,8 +60,24 @@ export interface LedgerRowData {
   amount: number;
   categoryPath?: string;
   accountName?: string;
+  toAccountName?: string;
+  personName?: string;
+  holdingName?: string;
   note?: string;
 }
+
+const LOAN_TYPES: ReadonlySet<TxnType> = new Set<TxnType>([
+  "loan_given",
+  "loan_taken",
+  "repayment_in",
+  "repayment_out",
+]);
+
+const INVESTMENT_TYPES: ReadonlySet<TxnType> = new Set<TxnType>([
+  "investment_buy",
+  "investment_sell",
+  "dividend",
+]);
 
 export function LedgerRow({
   row,
@@ -66,19 +91,31 @@ export function LedgerRow({
   const [confirming, setConfirming] = useState(false);
   const Icon = ICON[row.type];
   const hasItem = Boolean(row.item);
-  const label = row.item || row.categoryPath || TYPE_LABEL[row.type];
+  const isLoan = LOAN_TYPES.has(row.type);
+  const isInvestment = INVESTMENT_TYPES.has(row.type);
+  // Loans key off WHO, investments key off WHICH holding — either way it's
+  // the specific thing this row is about, not the generic verb.
+  const subject = isLoan ? row.personName : isInvestment ? row.holdingName : undefined;
+
+  // "Loan given" or "Invested" alone told you nothing about which loan/holding
+  // it was. The subject becomes the headline; the verb moves down next to the
+  // account.
+  const label = subject || row.item || row.categoryPath || TYPE_LABEL[row.type];
   // When there's no item the title already IS the category path, so repeating it
   // in the meta line printed "Home › Rent" twice and made the root read like a
   // mis-categorisation rather than the parent bucket it is.
-  const meta = [hasItem ? row.categoryPath : undefined, row.accountName]
-    .filter(Boolean)
-    .join(" · ");
+  const meta =
+    isLoan || isInvestment
+      ? [subject ? TYPE_LABEL[row.type] : undefined, row.accountName].filter(Boolean).join(" · ")
+      : row.type === "transfer" && row.toAccountName
+        ? `${row.accountName} → ${row.toAccountName}`
+        : [hasItem ? row.categoryPath : undefined, row.accountName].filter(Boolean).join(" · ");
 
   return (
-    <div className="flex items-center gap-3 border-b border-rule-soft py-2.5 transition-colors last:border-b-0 hover:bg-surface-lift/60">
-      <Link href={`/txn/${row.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+    <div className="flex items-center gap-2.5 border-b border-rule-soft py-1.5 transition-colors last:border-b-0 hover:bg-surface-lift/60">
+      <Link href={`/txn/${row.id}`} className="flex min-w-0 flex-1 items-center gap-2.5">
         {/* Monochrome by design (§3) — direction is the glyph, never a colour */}
-        <Icon size={15} strokeWidth={1.75} className="shrink-0 text-fg-faint" aria-hidden />
+        <Icon size={14} strokeWidth={1.75} className="shrink-0 text-fg-faint" aria-hidden />
 
         <div className="min-w-0 flex-1">
           <div className="t-body truncate">{label}</div>

@@ -57,7 +57,7 @@ async function main() {
     // soft-deletes them and undoes their balance effect.
     const groups = new Map<string, TransactionDoc[]>();
     for (const txn of all) {
-      const key = [txn.raw_text ?? "", txn.amount, txn.type, txn.account_id.toHexString()].join("|");
+      const key = [txn.raw_text ?? "", txn.amount, txn.type, (txn.account_id?.toHexString() ?? "none")].join("|");
       const list = groups.get(key);
       if (list) list.push(txn);
       else groups.set(key, [txn]);
@@ -71,7 +71,7 @@ async function main() {
             `                keeping the first of ${list.length}, reversing this one`,
         );
         changes++;
-        touchedAccounts.add(dupe.account_id.toHexString());
+        touchedAccounts.add((dupe.account_id?.toHexString() ?? "none"));
         if (APPLY) await reverseTransaction(scope, dupe._id);
       }
     }
@@ -87,7 +87,7 @@ async function main() {
             `   ~ amount     ${formatPKR(txn.amount)} → ${formatPKR(fix.amount)}  "${fix.rawText}"`,
           );
           set.amount = fix.amount;
-          touchedAccounts.add(txn.account_id.toHexString());
+          touchedAccounts.add((txn.account_id?.toHexString() ?? "none"));
         }
         if (fix.item && txn.item !== fix.item) {
           console.log(`   ~ item       ${JSON.stringify(txn.item)} → ${JSON.stringify(fix.item)}`);
@@ -131,7 +131,7 @@ async function main() {
     for (const acc of accounts) {
       let summed = 0;
       for (const t of txns) {
-        if (t.account_id.equals(acc._id)) summed += ACCOUNT_SIGN[t.type] * t.amount;
+        if (t.account_id?.equals(acc._id)) summed += ACCOUNT_SIGN[t.type] * t.amount;
         if (t.to_account_id?.equals(acc._id)) summed += t.amount;
       }
       const drift = summed === acc.balance ? "" : `   DRIFT — transactions sum to ${formatPKR(summed)}`;

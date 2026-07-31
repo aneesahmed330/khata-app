@@ -24,6 +24,7 @@ import type {
   PersonDoc,
   TransactionDoc,
   LoanDoc,
+  HoldingDoc,
   ReceiptDoc,
   BudgetDoc,
   AliasDoc,
@@ -36,6 +37,7 @@ const PER_USER_COLLECTIONS = [
   "people",
   "transactions",
   "loans",
+  "holdings",
   "receipts",
   "budgets",
   "aliases",
@@ -102,6 +104,7 @@ export interface UserScope {
   people: ScopedCollection<PersonDoc>;
   transactions: ScopedCollection<TransactionDoc>;
   loans: ScopedCollection<LoanDoc>;
+  holdings: ScopedCollection<HoldingDoc>;
   receipts: ScopedCollection<ReceiptDoc>;
   budgets: ScopedCollection<BudgetDoc>;
   aliases: ScopedCollection<AliasDoc>;
@@ -118,6 +121,7 @@ export async function forUser(userId: ObjectId | string): Promise<UserScope> {
     people: new ScopedCollection<PersonDoc>(db.collection("people"), uid),
     transactions: new ScopedCollection<TransactionDoc>(db.collection("transactions"), uid),
     loans: new ScopedCollection<LoanDoc>(db.collection("loans"), uid),
+    holdings: new ScopedCollection<HoldingDoc>(db.collection("holdings"), uid),
     receipts: new ScopedCollection<ReceiptDoc>(db.collection("receipts"), uid),
     budgets: new ScopedCollection<BudgetDoc>(db.collection("budgets"), uid),
     aliases: new ScopedCollection<AliasDoc>(db.collection("aliases"), uid),

@@ -38,14 +38,15 @@ export default async function TransactionPage({ params }: { params: { id: string
     note: txn.note ?? "",
     date: txn.date.toISOString().slice(0, 10),
     categoryId: txn.category_id?.toHexString() ?? "",
-    accountId: txn.account_id.toHexString(),
+    accountId: txn.account_id?.toHexString() ?? "",
     rawText: txn.raw_text ?? "",
     source: txn.source,
-    // Amount/account are locked for loan and transfer rows — updateTransaction
-    // refuses those edits because the loan balance or the paired account would
-    // also have to be reworked (lib/ledger.ts). The form disables them rather
+    // Amount/account are locked for loan, transfer, and investment rows —
+    // updateTransaction refuses those edits because the loan balance, the
+    // paired account, or the holding's invested_total/quantity would also
+    // have to be reworked (lib/ledger.ts). The form disables them rather
     // than letting the user submit something that will be rejected.
-    financialsLocked: Boolean(txn.loan_id || txn.to_account_id),
+    financialsLocked: Boolean(txn.loan_id || txn.to_account_id || txn.holding_id),
   };
 
   return (

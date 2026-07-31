@@ -47,13 +47,20 @@ export async function updateTransactionAction(
   const date = dateRaw ? new Date(`${dateRaw}T00:00:00`) : txn.date;
   if (Number.isNaN(date.getTime())) return { error: "Invalid date." };
 
+  // Empty means "no funding account recorded" — only possible (and only
+  // submitted this way) for a financials-locked investment entry; every
+  // other type's <select> is a required field, so accountRaw is never empty
+  // for those.
   const accountRaw = String(formData.get("account_id") ?? "");
-  if (!ObjectId.isValid(accountRaw)) return { error: "Invalid account." };
-  const accountId = new ObjectId(accountRaw);
-  // Confirms the account is THIS user's — an id from a tampered form must never
-  // move another tenant's balance (plan.md §8.1).
-  const account = await scope.accounts.findOne({ _id: accountId });
-  if (!account) return { error: "Account not found." };
+  let accountId: ObjectId | undefined;
+  if (accountRaw) {
+    if (!ObjectId.isValid(accountRaw)) return { error: "Invalid account." };
+    accountId = new ObjectId(accountRaw);
+    // Confirms the account is THIS user's — an id from a tampered form must
+    // never move another tenant's balance (plan.md §8.1).
+    const account = await scope.accounts.findOne({ _id: accountId });
+    if (!account) return { error: "Account not found." };
+  }
 
   const categoryRaw = String(formData.get("category_id") ?? "");
   let categoryId: ObjectId | null = null;

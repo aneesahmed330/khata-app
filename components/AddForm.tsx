@@ -446,12 +446,13 @@ function PreviewCard({
   }
 
   function pickAccountFor(accountId: string) {
+    const field = pending?.field ?? "account_id";
     if (pending?.actionIndex === undefined) {
-      onCommit({ ...step, parsed: { ...parsed, account_id: accountId }, pending: undefined });
+      onCommit({ ...step, parsed: { ...parsed, [field]: accountId }, pending: undefined });
       return;
     }
     const actions = [...(parsed.actions ?? [])];
-    actions[pending.actionIndex] = { ...actions[pending.actionIndex]!, account_id: accountId };
+    actions[pending.actionIndex] = { ...actions[pending.actionIndex]!, [field]: accountId };
     onCommit({ ...step, parsed: { ...parsed, actions }, pending: undefined });
   }
 
@@ -515,7 +516,9 @@ function PreviewCard({
               : pending.reason === "account"
                 ? pending.proposal
                   ? "This account doesn't exist — create it?"
-                  : "Which account?"
+                  : pending.field === "to_account_id"
+                    ? "Transfer to which account?"
+                    : "Which account?"
                 : "What is this?"}
           </p>
           <div className="flex flex-wrap gap-2">

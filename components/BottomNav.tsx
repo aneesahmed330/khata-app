@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { House, ScrollText, ChartNoAxesColumn, Settings2, Plus } from "lucide-react";
+import { House, ScrollText, HandCoins, LineChart, ChartNoAxesColumn, Settings2, Plus } from "lucide-react";
 import clsx from "clsx";
 
 const TABS = [
   { href: "/", label: "Home", Icon: House },
   { href: "/history", label: "History", Icon: ScrollText },
+  { href: "/loans", label: "Loans", Icon: HandCoins },
+  { href: "/investments", label: "Invest", Icon: LineChart },
   { href: "/insights", label: "Insights", Icon: ChartNoAxesColumn },
   { href: "/settings", label: "Settings", Icon: Settings2 },
 ] as const;
@@ -16,9 +18,10 @@ function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
-// Five slots: two tabs, the Add action, two tabs (DESIGN.md §5). Active state is
-// a 2px accent rule along the tab's top edge — the same hairline language the
-// ledger uses, rather than a pill or a shadow (§7.4: zero shadows).
+// Seven slots: three tabs, the Add action, three tabs (DESIGN.md §5's original
+// two-and-two, widened to keep the FAB centered once Loans/Invest joined).
+// Active state is a 2px accent rule along the tab's top edge — the same
+// hairline language the ledger uses, rather than a pill or a shadow (§7.4).
 export function BottomNav() {
   const pathname = usePathname();
 
@@ -27,8 +30,8 @@ export function BottomNav() {
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-30 border-t border-rule bg-surface-lift safe-b"
     >
-      <div className="mx-auto grid max-w-md grid-cols-5 items-stretch">
-        {TABS.slice(0, 2).map((tab) => (
+      <div className="mx-auto grid max-w-md grid-cols-7 items-stretch">
+        {TABS.slice(0, 3).map((tab) => (
           <Tab key={tab.href} {...tab} active={isActive(pathname, tab.href)} />
         ))}
 
@@ -46,7 +49,7 @@ export function BottomNav() {
           </Link>
         </div>
 
-        {TABS.slice(2).map((tab) => (
+        {TABS.slice(3).map((tab) => (
           <Tab key={tab.href} {...tab} active={isActive(pathname, tab.href)} />
         ))}
       </div>

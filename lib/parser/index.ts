@@ -6,7 +6,7 @@
 import { ObjectId } from "mongodb";
 import type { AliasDoc, AccountDoc, CategoryDoc } from "../types";
 import type { ParsedIntent } from "../schemas";
-import { parseAmount } from "./amount";
+import { parseAmount, countAmountMentions } from "./amount";
 import { parseDate } from "./date";
 import { detectIntent } from "./intent";
 import { matchAlias } from "./dict";
@@ -53,6 +53,11 @@ function findMentionedAccounts(text: string, accounts: AccountDoc[]): AccountDoc
 export function parseLayer1(text: string, ctx: Layer1Context): ParsedIntent | null {
   const amount = parseAmount(text);
   if (amount === null) return null; // nothing to anchor a confident parse on
+
+  // More than one amount mentioned means more than one financial event —
+  // Layer 1 can only ever grab the first, so trust Layer 2's multi-intent
+  // handling instead of confidently committing on half the sentence.
+  if (countAmountMentions(text) > 1) return null;
 
   const date = parseDate(text, ctx.now) ?? ctx.now;
   const signal = detectIntent(text);
