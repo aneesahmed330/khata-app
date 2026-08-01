@@ -50,6 +50,17 @@ export interface AccountDoc {
   type: AccountType;
   balance: number;
   archived: boolean;
+  // These two are deliberately separate flags, not one "private" setting.
+  // Hiding is about the screen; excluding is about the arithmetic. A joint
+  // account you'd rather not display over someone's shoulder still spends
+  // real money, and a wallet you hold for someone else is perfectly fine to
+  // look at while being none of your net worth. Collapsing them would force
+  // one to imply the other.
+  /** Mask this account's balance even when the global privacy toggle is off. */
+  hide_balance?: boolean;
+  /** Keep the balance out of net worth and the "in accounts" total. The
+   *  account still records transactions normally. */
+  exclude_from_total?: boolean;
   auto_created: boolean;
   created_from_text?: string;
   created_at: Date;
@@ -132,7 +143,11 @@ export interface LoanDoc {
   direction: LoanDirection;
   principal: number;
   outstanding: number;
-  account_id: ObjectId;
+  /** Optional: a loan recorded long after the fact often has no account the
+   *  user can still name. Absent means "money moved, source not recorded" —
+   *  no balance was touched, which is correct for a historical entry whose
+   *  cash left the account before the app ever saw it. */
+  account_id?: ObjectId;
   status: LoanStatus;
   due_date?: Date;
   /** Set when a loan was closed without the remainder being repaid — forgiven,
@@ -159,6 +174,14 @@ export interface HoldingDoc {
   // updates themselves (a separate PSX data project owns real price fetching).
   current_value?: number;
   current_value_updated_at?: Date;
+  // Same pair of flags as AccountDoc, and separate for the same reason: one is
+  // about the screen, the other about the arithmetic. A holding you manage on
+  // someone else's behalf is fine to look at but isn't your net worth.
+  /** Mask this holding's figures even when the global privacy toggle is off. */
+  hide_value?: boolean;
+  /** Keep this holding out of net worth and the portfolio totals. It still
+   *  records buys, sells and dividends normally. */
+  exclude_from_total?: boolean;
   status: HoldingStatus;
   created_at: Date;
 }

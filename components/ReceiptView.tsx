@@ -29,6 +29,9 @@ export interface NeedsConfirmation {
    *  slots — tells the client which field the picked chip should fill.
    *  Absent means "account_id", same as every other intent. */
   field?: "account_id" | "to_account_id";
+  /** Set when committing with no account at all is a legitimate answer — an
+   *  old loan whose funding account the user can't recall. */
+  allowNoAccount?: boolean;
   /** Set only when the parent message was intent: "multi" — which of
    *  parsed.actions this confirmation is about. */
   actionIndex?: number;

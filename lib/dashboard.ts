@@ -18,8 +18,13 @@ export interface NetWorth {
  *  an unrealised gain). */
 export async function fetchNetWorth(scope: UserScope): Promise<NetWorth> {
   const [accounts, holdings, loans] = await Promise.all([
-    scope.accounts.find({ archived: { $ne: true } }).toArray(),
-    scope.holdings.find({ status: "open" }).toArray(),
+    // exclude_from_total accounts still record transactions and still show on
+    // the dashboard — they just don't count here. Money you're holding for
+    // someone else is in the account but isn't yours.
+    scope.accounts
+      .find({ archived: { $ne: true }, exclude_from_total: { $ne: true } })
+      .toArray(),
+    scope.holdings.find({ status: "open", exclude_from_total: { $ne: true } }).toArray(),
     scope.loans.find({ status: "open" }).toArray(),
   ]);
 

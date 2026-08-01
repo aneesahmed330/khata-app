@@ -118,9 +118,17 @@ export function LedgerRow({
         <Icon size={14} strokeWidth={1.75} className="shrink-0 text-fg-faint" aria-hidden />
 
         <div className="min-w-0 flex-1">
-          <div className="t-body truncate">{label}</div>
-          {meta ? <div className="t-label truncate text-fg-muted">{meta}</div> : null}
-          {row.note ? <div className="t-label truncate italic text-fg-faint">{row.note}</div> : null}
+          <div className="t-body truncate leading-tight">{label}</div>
+          {/* Plain 11px, not .t-micro — that utility carries text-transform:
+              uppercase, and overriding it with normal-case is a coin flip
+              since both live in the same cascade layer. Caps also truncated
+              far sooner: "MEZAAN B…" where "Mezaan Bank" fits. */}
+          {meta ? (
+            <div className="truncate text-[11px] leading-tight text-fg-muted">{meta}</div>
+          ) : null}
+          {row.note ? (
+            <div className="truncate text-[11px] italic leading-tight text-fg-faint">{row.note}</div>
+          ) : null}
         </div>
 
         {/* Fixed right column — the whole point of a ledger (§5) */}

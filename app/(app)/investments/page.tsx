@@ -38,17 +38,32 @@ export default async function InvestmentsPage() {
     currentValue: h.current_value,
     quantity: h.quantity,
     quantityUnit: h.quantity_unit,
+    hideValue: h.hide_value,
+    excludeFromTotal: h.exclude_from_total,
   });
 
-  const totalInvested = open.reduce((sum, h) => sum + h.invested_total, 0);
-  const totalCurrentValue = open.reduce((sum, h) => sum + (h.current_value ?? h.invested_total), 0);
+  // Same rule as the dashboard's net worth — a holding taken out of the total
+  // must not quietly reappear in the portfolio summary on this page.
+  const counted = open.filter((h) => !h.exclude_from_total);
+  const excludedCount = holdings.length - counted.length - closed.length;
+  const totalInvested = counted.reduce((sum, h) => sum + h.invested_total, 0);
+  const totalCurrentValue = counted.reduce(
+    (sum, h) => sum + (h.current_value ?? h.invested_total),
+    0,
+  );
   const totalDividends = holdings.reduce((sum, h) => sum + h.dividends_received, 0);
   const gain = totalCurrentValue - totalInvested;
-  const hasAnyCurrentValue = open.some((h) => h.current_value !== undefined);
+  const hasAnyCurrentValue = counted.some((h) => h.current_value !== undefined);
 
   return (
     <>
-      <TopBar title="Investments" eyebrow={`${open.length} holding${open.length === 1 ? "" : "s"}`} />
+      <TopBar
+        title="Investments"
+        eyebrow={
+          `${open.length} holding${open.length === 1 ? "" : "s"}` +
+          (excludedCount > 0 ? ` · ${excludedCount} not counted` : "")
+        }
+      />
       <main className="mx-auto max-w-md px-4 pt-4">
         {holdings.length === 0 ? (
           <EmptyNote>No investments yet. Tap + below to add one.</EmptyNote>

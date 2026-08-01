@@ -495,11 +495,21 @@ function PreviewCard({
                 onClick={() => onCommit(step, overridesFor({ confirmCreateAccount: true }))}
               />
             ) : null}
-            {pending.reason === "account" && !pending.proposal
-              ? accounts.map((a) => (
+            {pending.reason === "account" && !pending.proposal ? (
+              <>
+                {accounts.map((a) => (
                   <Chip key={a.id} label={a.name} onClick={() => pickAccountFor(a.id)} />
-                ))
-              : null}
+                ))}
+                {/* Recording an old loan against a current account would
+                    double-count it — the cash left long ago. */}
+                {pending.allowNoAccount ? (
+                  <Chip
+                    label="Don't remember"
+                    onClick={() => onCommit(step, overridesFor({ confirmNoAccount: true }))}
+                  />
+                ) : null}
+              </>
+            ) : null}
             {pending.reason === "loan_action" && pending.loanContext ? (
               <>
                 <Chip label="New loan" onClick={() => onCommit(step, overridesFor({ confirmedLoanAction: "new" }))} />

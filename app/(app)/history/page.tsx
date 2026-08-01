@@ -1,14 +1,24 @@
 import { getSession } from "@/lib/auth";
 import { forUser } from "@/lib/scope";
-import { DateFilterBar } from "@/components/DateFilterBar";
+import { HistoryFilter } from "@/components/HistoryFilter";
 import { HistoryList } from "@/components/HistoryList";
 import { EmptyNote } from "@/components/EmptyState";
 import { TopBar } from "@/components/TopBar";
+import { Sensitive } from "@/components/Sensitive";
 import { groupTransactionsByDay } from "@/lib/ledger-view";
 import { fetchLedgerPage, fetchLedgerTotals } from "@/lib/ledger-query";
-import { formatPKR } from "@/lib/format";
+import { formatPKRWhole } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
+
+function rangeLabel(from?: string, to?: string): string {
+  const fmt = (d: string) =>
+    new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  if (from && to) return `${fmt(from)} – ${fmt(to)}`;
+  if (from) return `since ${fmt(from)}`;
+  if (to) return `up to ${fmt(to)}`;
+  return "All time";
+}
 
 export default async function HistoryPage({
   searchParams,
@@ -37,20 +47,26 @@ export default async function HistoryPage({
     <>
       <TopBar
         title="History"
-        eyebrow={`${totals.count} entr${totals.count === 1 ? "y" : "ies"}`}
+        eyebrow={`${totals.count} ${totals.count === 1 ? "entry" : "entries"} · ${rangeLabel(from, to)}`}
       />
-      <main className="mx-auto max-w-md px-4 pt-4">
-        <DateFilterBar from={from} to={to} />
+      <main className="mx-auto max-w-md px-4 pb-6 pt-3">
+        <HistoryFilter range={{ from, to }} />
 
         {groups.length === 0 ? (
-          <EmptyNote>
-            {from || to ? "No entries in this range." : "No entries yet. Tap + below."}
-          </EmptyNote>
+          <div className="mt-4">
+            <EmptyNote>
+              {from || to ? "Nothing in this range." : "No entries yet. Tap + below."}
+            </EmptyNote>
+          </div>
         ) : (
           <>
-            <div className="mb-2 flex items-baseline justify-between border-b border-rule pb-3">
+            {/* One quiet summary line rather than a boxed stat — the ledger
+                below is the content, and a card here competed with it. */}
+            <div className="mt-3 flex items-baseline justify-between border-b border-rule pb-2">
               <span className="t-micro text-fg-faint">Total spent</span>
-              <span className="tnum font-num text-[15px]">−{formatPKR(totals.outflow)}</span>
+              <span className="tnum font-num text-[15px] text-out">
+                −<Sensitive>{formatPKRWhole(totals.outflow)}</Sensitive>
+              </span>
             </div>
 
             <HistoryList

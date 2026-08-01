@@ -28,10 +28,19 @@ async function loadLoan(scope: UserScope, id: string) {
   return scope.loans.findOne({ _id: new ObjectId(id) });
 }
 
-async function resolveAccount(scope: UserScope, raw: FormDataEntryValue | null) {
+/** Returns `{ ok: true, id: undefined }` when the user chose not to name an
+ *  account — see LoanDoc.account_id for why that's a valid answer rather than
+ *  a missing field. */
+async function resolveOptionalAccount(
+  scope: UserScope,
+  raw: FormDataEntryValue | null,
+): Promise<{ ok: true; id?: ObjectId } | { ok: false; error: string }> {
   const value = String(raw ?? "");
-  if (!ObjectId.isValid(value)) return null;
-  return scope.accounts.findOne({ _id: new ObjectId(value) });
+  if (!value) return { ok: true, id: undefined };
+  if (!ObjectId.isValid(value)) return { ok: false, error: "Invalid account." };
+  const account = await scope.accounts.findOne({ _id: new ObjectId(value) });
+  if (!account) return { ok: false, error: "Account not found." };
+  return { ok: true, id: account._id };
 }
 
 /** Money coming back. `repayment_in` when they're paying you, `repayment_out`
@@ -56,8 +65,8 @@ export async function recordRepaymentAction(
     return { error: `That's more than the ${loan.outstanding} still outstanding.` };
   }
 
-  const account = await resolveAccount(scope, formData.get("account_id"));
-  if (!account) return { error: "Pick the account the money moved through." };
+  const resolvedAccount = await resolveOptionalAccount(scope, formData.get("account_id"));
+  if (!resolvedAccount.ok) return { error: resolvedAccount.error };
 
   const dateRaw = String(formData.get("date") ?? "");
   const date = dateRaw ? new Date(`${dateRaw}T00:00:00`) : new Date();
@@ -67,7 +76,7 @@ export async function recordRepaymentAction(
     await postTransaction(scope, {
       type: loan.direction === "given" ? "repayment_in" : "repayment_out",
       amount,
-      account_id: account._id,
+      account_id: resolvedAccount.id,
       person_id: loan.person_id,
       loan_id: loan._id,
       date,
@@ -99,8 +108,8 @@ export async function addToLoanAction(
   const amount = parseAmount(formData.get("amount"));
   if (!amount) return { error: "Amount must be a number greater than zero." };
 
-  const account = await resolveAccount(scope, formData.get("account_id"));
-  if (!account) return { error: "Pick the account the money moved through." };
+  const resolvedAccount = await resolveOptionalAccount(scope, formData.get("account_id"));
+  if (!resolvedAccount.ok) return { error: resolvedAccount.error };
 
   const dateRaw = String(formData.get("date") ?? "");
   const date = dateRaw ? new Date(`${dateRaw}T00:00:00`) : new Date();
@@ -110,7 +119,7 @@ export async function addToLoanAction(
     await postTransaction(scope, {
       type: loan.direction === "given" ? "loan_given" : "loan_taken",
       amount,
-      account_id: account._id,
+      account_id: resolvedAccount.id,
       person_id: loan.person_id,
       loan_id: loan._id,
       date,

@@ -21,7 +21,11 @@ export default async function SettingsPage() {
     scope.people.countDocuments({}),
   ]);
 
-  const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0);
+  // Same rule as the dashboard's net worth — an account the user has taken out
+  // of their total must not quietly reappear in a different total.
+  const counted = accounts.filter((a) => !a.exclude_from_total);
+  const totalBalance = counted.reduce((sum, a) => sum + a.balance, 0);
+  const excludedCount = accounts.length - counted.length;
 
   return (
     <>
@@ -36,6 +40,9 @@ export default async function SettingsPage() {
               value={
                 <>
                   {accounts.length} · <Sensitive>{formatPKR(totalBalance)}</Sensitive>
+                  {excludedCount > 0 ? (
+                    <span className="text-fg-faint"> · {excludedCount} not counted</span>
+                  ) : null}
                 </>
               }
             />

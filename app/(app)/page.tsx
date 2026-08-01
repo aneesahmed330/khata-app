@@ -58,11 +58,14 @@ export default async function HomePage() {
     currentValue: h.current_value,
     quantity: h.quantity,
     quantityUnit: h.quantity_unit,
+    hideValue: h.hide_value,
+    excludeFromTotal: h.exclude_from_total,
   }));
 
   const monthLabel = now.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const spentSeries = daily.map((d) => d.value);
   const hasSpendData = daily.some((d) => d.value > 0);
+  const excludedCount = accounts.filter((a) => a.exclude_from_total).length;
 
   return (
     <main className="mx-auto max-w-md px-4 pb-6">
@@ -134,7 +137,11 @@ export default async function HomePage() {
         <section className="mt-5">
           <SectionHead
             label="Accounts"
-            meta={`${accounts.length}`}
+            meta={
+              excludedCount > 0
+                ? `${excludedCount} not counted`
+                : `${accounts.length}`
+            }
           />
           <AccountGrid
             accounts={accounts.map((a) => ({
@@ -142,6 +149,8 @@ export default async function HomePage() {
               name: a.name,
               balance: a.balance,
               type: a.type,
+              hideBalance: a.hide_balance,
+              excludeFromTotal: a.exclude_from_total,
             }))}
           />
         </section>
@@ -164,10 +173,13 @@ export default async function HomePage() {
 }
 
 function InvestmentSection({ holdings }: { holdings: HoldingSummary[] }) {
-  const invested = holdings.reduce((sum, h) => sum + h.investedTotal, 0);
-  const valued = holdings.reduce((sum, h) => sum + (h.currentValue ?? h.investedTotal), 0);
+  // The list shows every holding; the unrealised figure only counts the ones
+  // that are part of net worth, matching /investments and the hero total.
+  const counted = holdings.filter((h) => !h.excludeFromTotal);
+  const invested = counted.reduce((sum, h) => sum + h.investedTotal, 0);
+  const valued = counted.reduce((sum, h) => sum + (h.currentValue ?? h.investedTotal), 0);
   const gain = valued - invested;
-  const priced = holdings.some((h) => h.currentValue !== undefined);
+  const priced = counted.some((h) => h.currentValue !== undefined);
   const gainPct = invested > 0 ? (gain / invested) * 100 : 0;
 
   return (

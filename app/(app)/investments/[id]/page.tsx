@@ -40,13 +40,19 @@ export default async function HoldingPage({ params }: { params: { id: string } }
     id: holding._id.toHexString(),
     name: holding.name,
     symbol: holding.symbol,
+    type: holding.type,
     typeLabel: TYPE_LABEL[holding.type],
     quantity: holding.quantity,
     quantityUnit: holding.quantity_unit,
     investedTotal: holding.invested_total,
     currentValue: holding.current_value,
-    currentValueUpdatedAt: holding.current_value_updated_at?.toISOString(),
+    currentValueUpdatedAt: holding.current_value_updated_at?.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+    }),
     dividendsReceived: holding.dividends_received,
+    hideValue: holding.hide_value ?? false,
+    excludeFromTotal: holding.exclude_from_total ?? false,
     status: holding.status,
   };
 

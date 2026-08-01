@@ -369,10 +369,10 @@ function AccountSelect({ name, accounts }: { name: string; accounts: { id: strin
   return (
     <select
       name={name}
-      required
       defaultValue={accounts[0]?.id ?? ""}
       className="t-body w-full appearance-none rounded-chip border border-rule bg-surface-sunk px-3.5 py-3 text-fg outline-none transition-colors focus:border-accent"
     >
+      <option value="">Not sure / don&apos;t remember</option>
       {accounts.map((a) => (
         <option key={a.id} value={a.id}>
           {a.name}

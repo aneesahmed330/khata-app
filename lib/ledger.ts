@@ -132,10 +132,7 @@ export async function postTransaction(
               direction: input.type === "loan_given" ? "given" : "taken",
               principal: input.amount,
               outstanding: input.amount,
-              // Loans always have a funding account — only investment_buy/
-              // sell/dividend ever omit one, and this branch only runs for
-              // loan_given/loan_taken.
-              account_id: input.account_id!,
+              account_id: input.account_id,
               status: "open",
               created_at: new Date(),
             },

@@ -18,6 +18,9 @@ interface ActionOverride {
   confirmCreateCategory?: boolean;
   confirmCreateAccount?: boolean;
   confirmedLoanAction?: "new" | "append" | "repayment";
+  /** The user answered "I don't remember which account". Distinct from simply
+   *  not having sent one, which still has to ask. */
+  confirmNoAccount?: boolean;
 }
 
 interface CommitRequest {
@@ -31,6 +34,7 @@ interface CommitRequest {
   confirmCreateCategory?: boolean;
   confirmCreateAccount?: boolean;
   confirmedLoanAction?: "new" | "append" | "repayment";
+  confirmNoAccount?: boolean;
   // For intent === "multi" only — resolving action[i] a second time after a
   // confirm chip. Keyed by index rather than re-sending the whole array with
   // the answer baked in, so the client only has to remember which slot
@@ -88,6 +92,7 @@ export async function POST(req: Request) {
       case "borrow_money":
         outcome = await resolveLoanAction(scope, parsed, ctx, {
           confirmedLoanAction: body.confirmedLoanAction,
+          confirmNoAccount: body.confirmNoAccount,
         });
         break;
       case "transfer":
@@ -183,6 +188,7 @@ async function commitMulti(scope: UserScope, body: CommitRequest) {
       case "borrow_money":
         outcome = await resolveLoanAction(scope, asIntent, ctx, {
           confirmedLoanAction: override.confirmedLoanAction,
+          confirmNoAccount: override.confirmNoAccount,
         });
         break;
       case "transfer":
@@ -331,7 +337,10 @@ async function resolveLoanAction(
   scope: UserScope,
   parsed: ParsedIntent,
   ctx: ResolveCtx,
-  overrides: { confirmedLoanAction?: "new" | "append" | "repayment" },
+  overrides: {
+    confirmedLoanAction?: "new" | "append" | "repayment";
+    confirmNoAccount?: boolean;
+  },
 ): Promise<ResolveOutcome> {
   if (!parsed.amount) return { ok: false, status: 400, body: { error: "amount is required" } };
   if (!parsed.person_id && !parsed.person_name) {
@@ -365,11 +374,22 @@ async function resolveLoanAction(
     };
   }
 
-  if (!parsed.account_id) {
-    return { ok: false, status: 200, body: { needsConfirmation: true, reason: "account", missing: ["account_id"] } };
+  // An old loan usually has no account the user can still name, and charging
+  // one now would double-count: that cash left the account long before the app
+  // saw it, so today's balance already reflects it. Skipping the account
+  // records the receivable and moves no balance — but it has to be chosen
+  // deliberately, so a merely-absent account still asks.
+  let account = null as Awaited<ReturnType<typeof scope.accounts.findOne>> | null;
+  if (parsed.account_id) {
+    account = await scope.accounts.findOne({ _id: new ObjectId(parsed.account_id) });
+    if (!account) return { ok: false, status: 400, body: { error: "Account not found" } };
+  } else if (!overrides.confirmNoAccount) {
+    return {
+      ok: false,
+      status: 200,
+      body: { needsConfirmation: true, reason: "account", missing: ["account_id"], allowNoAccount: true },
+    };
   }
-  const account = await scope.accounts.findOne({ _id: new ObjectId(parsed.account_id) });
-  if (!account) return { ok: false, status: 400, body: { error: "Account not found" } };
 
   const isGiven = parsed.intent === "lend_money";
   let txnType: "loan_given" | "loan_taken" | "repayment_in" | "repayment_out";
@@ -398,13 +418,15 @@ async function resolveLoanAction(
         ? { kind: "loan_updated", person: personName, added: amount, outstanding: amount }
         : { kind: "loan_opened", person: personName, amount };
   effects.push(loanEffect);
-  effects.push({
-    kind: "balance_adjusted",
-    name: account.name,
-    from: account.balance,
-    to: account.balance + (isOutflow ? -amount : amount),
-    delta: isOutflow ? -amount : amount,
-  });
+  if (account) {
+    effects.push({
+      kind: "balance_adjusted",
+      name: account.name,
+      from: account.balance,
+      to: account.balance + (isOutflow ? -amount : amount),
+      delta: isOutflow ? -amount : amount,
+    });
+  }
 
   return {
     ok: true,
@@ -414,7 +436,7 @@ async function resolveLoanAction(
         const posted = await postTransaction(scope, {
           type: txnType,
           amount,
-          account_id: account._id,
+          account_id: account?._id,
           person_id: personId,
           loan_id: loanIdForTxn,
           date,

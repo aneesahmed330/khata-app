@@ -108,13 +108,16 @@ export function ManualEntryForm({
         return { ...base, intent, amount: amountNum, account_id: accountId, to_account_id: toAccountId };
       case "lend_money":
       case "borrow_money":
-        if (!personName.trim() || !accountId) return null;
+        if (!personName.trim()) return null;
+        // Account is optional: an udhaar you're recording months later usually
+        // has no account you can still name, and charging one now would
+        // double-count — that cash left before the app ever saw it.
         return {
           ...base,
           intent,
           amount: amountNum,
           person_name: personName.trim(),
-          account_id: accountId,
+          account_id: accountId || undefined,
         };
       case "declare_account": {
         const balanceNum = Number(declareBalance);
@@ -145,7 +148,10 @@ export function ManualEntryForm({
         const data = (await res.json()) as CommitResponse;
 
         if ("needsConfirmation" in data) {
-          if (data.reason === "account" && data.proposal) {
+          if (data.reason === "account" && data.allowNoAccount) {
+            // The form intentionally sent no account; re-submit saying so.
+            void submit({ confirmNoAccount: true });
+          } else if (data.reason === "account" && data.proposal) {
             setStep({ kind: "confirming", reason: "account", proposal: data.proposal });
           } else if (data.reason === "loan_action" && data.loanContext) {
             setStep({ kind: "confirming", reason: "loan_action", loanContext: data.loanContext });
@@ -330,8 +336,20 @@ export function ManualEntryForm({
               ))}
             </datalist>
           </Field>
-          <Field label={intent === "lend_money" ? "From account" : "To account"} htmlFor="loan-account">
-            <AccountSelect accounts={accounts} value={accountId} onChange={setAccountId} />
+          <Field
+            label={intent === "lend_money" ? "From account (optional)" : "To account (optional)"}
+            htmlFor="loan-account"
+          >
+            <AccountSelect
+              accounts={accounts}
+              value={accountId}
+              onChange={setAccountId}
+              placeholder="Not sure / don't remember"
+            />
+            <p className="t-label mt-1.5 text-fg-faint">
+              Leave this blank for an older loan — it still gets recorded, it just won&apos;t move
+              any account balance.
+            </p>
           </Field>
         </>
       ) : null}

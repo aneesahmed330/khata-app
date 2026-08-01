@@ -294,6 +294,68 @@ export async function updateCurrentValueAction(
   redirect(`/investments/${holdingId}`);
 }
 
+/** The display/arithmetic flags, submitted one at a time so each toggle
+ *  round-trips independently — see AccountDoc for why they're separate. */
+export async function setHoldingFlagAction(
+  _prev: InvestmentActionResult | undefined,
+  formData: FormData,
+): Promise<InvestmentActionResult> {
+  const session = await getSession();
+  if (!session) return { error: "Session expired. Please log in again." };
+
+  const flag = String(formData.get("flag") ?? "");
+  if (flag !== "hide_value" && flag !== "exclude_from_total") {
+    return { error: "Unknown setting." };
+  }
+  const value = String(formData.get("value") ?? "") === "true";
+
+  const holdingId = String(formData.get("holding_id") ?? "");
+  const scope = await forUser(session.userId);
+  const holding = await findHolding(scope, holdingId);
+  if (!holding) return { error: "Holding not found." };
+
+  await scope.holdings.updateOne({ _id: holding._id }, { $set: { [flag]: value } });
+
+  revalidateInvestments();
+  revalidatePath(`/investments/${holdingId}`);
+  return {};
+}
+
+/** Rename / retype a holding. The invested total and quantity aren't editable
+ *  here — they're the sum of its buys and sells, so typing over them would
+ *  desync every transaction behind the holding. */
+export async function updateHoldingAction(
+  _prev: InvestmentActionResult | undefined,
+  formData: FormData,
+): Promise<InvestmentActionResult> {
+  const session = await getSession();
+  if (!session) return { error: "Session expired. Please log in again." };
+
+  const holdingId = String(formData.get("holding_id") ?? "");
+  const scope = await forUser(session.userId);
+  const holding = await findHolding(scope, holdingId);
+  if (!holding) return { error: "Holding not found." };
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: "Name can't be empty." };
+  if (name.length > 60) return { error: "Name is too long (60 characters max)." };
+
+  const type = String(formData.get("type") ?? "") as InvestmentType;
+  if (!INVESTMENT_TYPES.has(type)) return { error: "Pick a valid investment type." };
+
+  const symbol = String(formData.get("symbol") ?? "").trim() || undefined;
+  const quantityUnit = String(formData.get("quantity_unit") ?? "").trim() || undefined;
+
+  await scope.holdings.updateOne(
+    { _id: holding._id },
+    { $set: { name, type, symbol, quantity_unit: quantityUnit } },
+  );
+
+  revalidateInvestments();
+  revalidatePath(`/investments/${holdingId}`);
+  return {};
+}
+
 /** Reverses every transaction the holding ever posted (restoring whatever
  *  account balances they touched) and then removes the holding itself — a
  *  holding is closer to an account than to a ledger row, so unlike a
