@@ -41,6 +41,21 @@
   --color-liq-2: var(--k-liq-2);
   --color-liq-3: var(--k-liq-3);
 
+  /* Category-breakdown donut — a genuine categorical set (identity, not
+   * magnitude or sequence), fixed order, 4 slots + "Other". Deliberately NOT
+   * built from accent/out/in/pending's hues: those already carry meaning
+   * elsewhere (brand, expense/danger, income/good, pending) and reusing one
+   * here would make a category slice misread as a status signal. Validated
+   * --pairs all (every slice can be visually compared to every other, not
+   * just neighbours) via dataviz validate_palette.js; "Other" reuses
+   * fg-faint rather than a 5th searched hue — gray is the correct read for
+   * "miscellaneous," not just a convenient one. */
+  --color-cat-1: var(--k-cat-1);
+  --color-cat-2: var(--k-cat-2);
+  --color-cat-3: var(--k-cat-3);
+  --color-cat-4: var(--k-cat-4);
+  --color-cat-other: var(--k-fg-faint);
+
   --font-display: "Bricolage Grotesque", var(--font-bricolage), sans-serif;
   --font-ui: "Archivo", var(--font-archivo), sans-serif;
   --font-num: "Spline Sans Mono", var(--font-spline), ui-monospace, monospace;
@@ -84,6 +99,14 @@
   --k-liq-1: #f0bd6e;
   --k-liq-2: #dc9a33;
   --k-liq-3: #9c6a1c;
+
+  /* categorical donut — validated --pairs all against surface-lift #152426:
+   * CVD 11.7 (target 8.0), normal-vision floor 15.6 (gate 15.0). Contrast WARN
+   * on the magenta slot (2.66:1) — mitigated by direct labels + table view. */
+  --k-cat-1: #849b11;
+  --k-cat-2: #0ca4a0;
+  --k-cat-3: #5b71f0;
+  --k-cat-4: #af2a85;
 }
 
 /* ── paper (light) — first-class, not a flip. DESIGN.md §8 ────────────────────
@@ -125,6 +148,15 @@
   --k-liq-1: #d19538;
   --k-liq-2: #a86e1c;
   --k-liq-3: #6f4410;
+
+  /* categorical donut — own steps, not a flip of dark's: validated --pairs
+   * all against surface-lift #f2f3ef, CVD 18.4, normal-vision floor 18.9.
+   * Contrast WARN on olive/cyan (2.57/2.08:1) — mitigated by direct labels +
+   * table view. */
+  --k-cat-1: #9a9f00;
+  --k-cat-2: #37bbc1;
+  --k-cat-3: #7573f6;
+  --k-cat-4: #a6207d;
 }
 
 @media (prefers-color-scheme: light) {
@@ -153,6 +185,11 @@
     --k-chart-mag: #a8762c;
     --k-chart-in: #2f7057;
     --k-chart-out: #a8433a;
+
+    --k-cat-1: #9a9f00;
+    --k-cat-2: #37bbc1;
+    --k-cat-3: #7573f6;
+    --k-cat-4: #a6207d;
   }
 }
 
@@ -223,9 +260,14 @@
     letter-spacing: -0.02em;
     font-weight: 500;
   }
+  /* Ledger row figure. 14px, not 17 — a paisa-precision balance-adjustment
+   * amount ("20,18,325.18") at 17px visually outweighed the row's own title
+   * (.t-body, 15px) and read as louder than the thing it was describing. The
+   * KPI tiles and hero already carry the "big number" weight elsewhere; a
+   * dense list of rows shouldn't compete with them. */
   .t-amount {
     font-family: var(--font-num);
-    font-size: 17px;
+    font-size: 14px;
     line-height: 1;
   }
   /* KPI tile figure — mono, between .t-amount and .t-balance-compact. The band
@@ -404,6 +446,19 @@
 .anim-bar-grow {
   width: var(--bar-w);
   animation: k-bar-grow 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Donut reveal — same 0.7s/ease.out as the bar-grow above, same idea applied
+ * to an arc instead of a width. Deliberately a `transition`, not a `@keyframes`
+ * + custom-property pair like anim-bar-grow's --bar-w: dasharray/dashoffset
+ * are set via `pathLength=100` on each <circle> (browser-normalized to a
+ * 0-100 scale, not a hand-computed real circumference), and the component
+ * flips a real React boolean to move stroke-dashoffset from its "swept away"
+ * starting value to its final one. A transition on a value React itself
+ * changes is simpler to get right than reproducing the same per-element
+ * offset math a second time inside a keyframe's `to` state. */
+.donut-arc {
+  transition: stroke-dashoffset 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 /* reduced motion — non-negotiable (DESIGN.md §6) */

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import clsx from "clsx";
-import { ArrowRight, ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, ArrowLeft, ChevronRight, MinusCircle } from "lucide-react";
 import { formatPKRWhole } from "@/lib/format";
 import { Sensitive } from "@/components/Sensitive";
 
@@ -11,6 +11,7 @@ export interface LoanSummary {
   principal: number;
   outstanding: number;
   status: "open" | "settled";
+  excludeFromTotal?: boolean;
 }
 
 /** Same glyph vocabulary as the ledger's loan rows: → money out to them,
@@ -44,7 +45,17 @@ export function LoanList({ loans }: { loans: LoanSummary[] }) {
             <div className="flex items-center gap-2.5">
               <Icon size={14} strokeWidth={1.75} className="shrink-0 text-fg-faint" aria-hidden />
               <div className="min-w-0 flex-1">
-                <div className="t-body truncate">{loan.personName}</div>
+                <div className="t-body flex items-center gap-1.5 truncate">
+                  <span className="truncate">{loan.personName}</span>
+                  {loan.excludeFromTotal ? (
+                    <MinusCircle
+                      size={11}
+                      strokeWidth={2}
+                      className="shrink-0 text-fg-faint"
+                      aria-label="Not counted in net worth"
+                    />
+                  ) : null}
+                </div>
                 <div className="t-label truncate text-fg-muted">
                   {loan.direction === "given" ? "You lent" : "You borrowed"}
                   {settled ? " · settled" : ""}

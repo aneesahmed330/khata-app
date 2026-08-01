@@ -1,6 +1,16 @@
+"use client";
+
+import { useState } from "react";
+import { ChevronRight } from "lucide-react";
 import clsx from "clsx";
 import { formatPKRWhole } from "@/lib/format";
 import { Sensitive } from "@/components/Sensitive";
+
+export interface RankChild {
+  id: string;
+  name: string;
+  total: number;
+}
 
 export interface RankRow {
   id: string;
@@ -8,6 +18,12 @@ export interface RankRow {
   total: number;
   /** Signed % vs the previous comparable period; null when there's no baseline. */
   deltaPct: number | null;
+  /** Sub-categories behind this total, current period only — a root category
+   *  is one aggregated number, and "Bills 8,750" alone doesn't say whether
+   *  that's mostly electricity or mostly gas. Absent (not empty) for a root
+   *  with no children of its own, which stays unexpandable rather than
+   *  showing a dead-end arrow. */
+  children?: RankChild[];
 }
 
 /** Ranked magnitude — ONE hue, length is the only variable. A colour per
@@ -16,8 +32,12 @@ export interface RankRow {
  *
  *  Bars share a scale anchored to the largest row, so lengths are comparable
  *  across rows; share-of-total and the vs-last-period delta ride alongside as
- *  text, since neither is encoded in the length. */
+ *  text, since neither is encoded in the length. Tapping a row with children
+ *  expands its sub-categories inline, scaled against THAT row's own total
+ *  (not the page max) — the question at that point is "what's driving Bills,"
+ *  not "how does Bills' plumbing bill compare to my rent." */
 export function RankBars({ rows, total }: { rows: RankRow[]; total: number }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
   if (rows.length === 0) return null;
   const max = Math.max(...rows.map((r) => r.total), 1);
 
@@ -26,14 +46,38 @@ export function RankBars({ rows, total }: { rows: RankRow[]; total: number }) {
       {rows.map((row, i) => {
         const share = total > 0 ? (row.total / total) * 100 : 0;
         const widthPct = Math.max((row.total / max) * 100, 1.5);
+        const hasChildren = Boolean(row.children && row.children.length > 0);
+        const isOpen = expanded === row.id;
+
         return (
           <div
             key={row.id}
             style={{ "--i": i } as React.CSSProperties}
             className={clsx("anim-stagger py-2.5", i > 0 && "border-t border-rule-soft")}
           >
-            <div className="mb-1.5 flex items-baseline justify-between gap-3">
-              <span className="t-body min-w-0 flex-1 truncate">{row.name}</span>
+            <button
+              type="button"
+              onClick={() => hasChildren && setExpanded(isOpen ? null : row.id)}
+              disabled={!hasChildren}
+              className={clsx(
+                "flex w-full items-baseline justify-between gap-3 text-left",
+                !hasChildren && "cursor-default",
+              )}
+            >
+              <span className="flex min-w-0 flex-1 items-center gap-1">
+                {hasChildren ? (
+                  <ChevronRight
+                    size={13}
+                    strokeWidth={2}
+                    className={clsx(
+                      "shrink-0 text-fg-faint transition-transform duration-200",
+                      isOpen && "rotate-90",
+                    )}
+                    aria-hidden
+                  />
+                ) : null}
+                <span className="t-body min-w-0 truncate">{row.name}</span>
+              </span>
               <span className="flex shrink-0 items-baseline gap-2.5">
                 {row.deltaPct !== null && Math.round(row.deltaPct) !== 0 ? (
                   <span
@@ -51,14 +95,49 @@ export function RankBars({ rows, total }: { rows: RankRow[]; total: number }) {
                   <Sensitive>{formatPKRWhole(row.total)}</Sensitive>
                 </span>
               </span>
-            </div>
+            </button>
+
             {/* square baseline, 4px rounded data-end, grows in on mount */}
-            <div className="h-1.5 w-full bg-rule-soft">
+            <div className="mt-1.5 h-1.5 w-full bg-rule-soft">
               <div
                 className="anim-bar-grow h-1.5 rounded-r-[4px] bg-chart-mag"
                 style={{ "--bar-w": `${widthPct}%` } as React.CSSProperties}
               />
             </div>
+
+            {isOpen && row.children ? (
+              <div className="anim-rise mt-3 flex flex-col gap-2 border-l border-rule-soft pl-3">
+                {row.children
+                  .slice()
+                  .sort((a, b) => b.total - a.total)
+                  .map((child) => {
+                    const childShare = row.total > 0 ? (child.total / row.total) * 100 : 0;
+                    return (
+                      <div key={child.id}>
+                        <div className="mb-1 flex items-baseline justify-between gap-3">
+                          <span className="t-label min-w-0 flex-1 truncate text-fg-muted">
+                            {child.name}
+                          </span>
+                          <span className="flex shrink-0 items-baseline gap-2">
+                            <span className="tnum text-[10px] text-fg-faint">
+                              {Math.round(childShare)}%
+                            </span>
+                            <span className="tnum font-num text-[12px] text-fg-muted">
+                              <Sensitive>{formatPKRWhole(child.total)}</Sensitive>
+                            </span>
+                          </span>
+                        </div>
+                        <div className="h-1 w-full bg-rule-soft">
+                          <div
+                            className="h-1 rounded-r-[3px] bg-chart-mag opacity-60"
+                            style={{ width: `${Math.max(childShare, 2)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            ) : null}
           </div>
         );
       })}

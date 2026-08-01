@@ -36,6 +36,7 @@ export default async function LoanPage({ params }: { params: { id: string } }) {
     principal: loan.principal,
     outstanding: loan.outstanding,
     writtenOff: loan.written_off,
+    excludeFromTotal: loan.exclude_from_total ?? false,
     status: loan.status,
     openedOn: loan.created_at.toLocaleDateString("en-GB", {
       day: "numeric",

@@ -1,7 +1,9 @@
 // Aggregations behind Home and Insights. Kept out of the pages so both read
 // the same numbers — "spent this month" must not be able to mean two different
 // things on two screens.
+import { getDb } from "./db";
 import type { UserScope } from "./scope";
+import type { UserDoc } from "./types";
 
 export interface NetWorth {
   liquid: number;
@@ -10,13 +12,28 @@ export interface NetWorth {
   owed: number;
   /** liquid + invested + receivable − owed */
   total: number;
+  /** Whether the whole category is switched off globally right now — Home
+   *  uses this to label the section instead of just silently showing 0. */
+  loansCounted: boolean;
+  investmentsCounted: boolean;
 }
 
 /** The whole financial position in one shape. Investments count at their
  *  latest known value — `current_value` when the user has snapshotted one,
  *  otherwise what they put in, which is the honest fallback (never a guess at
- *  an unrealised gain). */
+ *  an unrealised gain).
+ *
+ *  Two layers of "does this count", both narrowing only: a global switch per
+ *  category (loans / investments — Settings' "Net worth" section) that zeroes
+ *  the whole category when off, and a per-item exclude_from_total that carves
+ *  a single account/holding/loan out while its category stays on. The global
+ *  switch never overrides an item back IN — it can only remove more. */
 export async function fetchNetWorth(scope: UserScope): Promise<NetWorth> {
+  const db = await getDb();
+  const user = await db.collection<UserDoc>("users").findOne({ _id: scope.userId });
+  const countLoans = user?.count_loans_in_net_worth ?? true;
+  const countInvestments = user?.count_investments_in_net_worth ?? true;
+
   const [accounts, holdings, loans] = await Promise.all([
     // exclude_from_total accounts still record transactions and still show on
     // the dashboard — they just don't count here. Money you're holding for
@@ -24,8 +41,12 @@ export async function fetchNetWorth(scope: UserScope): Promise<NetWorth> {
     scope.accounts
       .find({ archived: { $ne: true }, exclude_from_total: { $ne: true } })
       .toArray(),
-    scope.holdings.find({ status: "open", exclude_from_total: { $ne: true } }).toArray(),
-    scope.loans.find({ status: "open" }).toArray(),
+    countInvestments
+      ? scope.holdings.find({ status: "open", exclude_from_total: { $ne: true } }).toArray()
+      : Promise.resolve([]),
+    countLoans
+      ? scope.loans.find({ status: "open", exclude_from_total: { $ne: true } }).toArray()
+      : Promise.resolve([]),
   ]);
 
   const liquid = accounts.reduce((sum, a) => sum + a.balance, 0);
@@ -37,7 +58,15 @@ export async function fetchNetWorth(scope: UserScope): Promise<NetWorth> {
     .filter((l) => l.direction === "taken")
     .reduce((sum, l) => sum + l.outstanding, 0);
 
-  return { liquid, invested, receivable, owed, total: liquid + invested + receivable - owed };
+  return {
+    liquid,
+    invested,
+    receivable,
+    owed,
+    total: liquid + invested + receivable - owed,
+    loansCounted: countLoans,
+    investmentsCounted: countInvestments,
+  };
 }
 
 export interface DaySpend {

@@ -5,14 +5,14 @@ import type { AccountDoc, CategoryDoc, HoldingDoc, PersonDoc, TransactionDoc, Tx
 import type { LedgerRowData } from "@/components/LedgerRow";
 import { relativeDateLabel } from "@/components/DateRule";
 
-/** Types that represent money leaving — used for the per-day outflow subtotal.
- *  `adjustment` is deliberately absent: an opening balance or a reconciliation
- *  is not spending, and counting it would make day totals nonsense. */
-const OUTFLOW: ReadonlySet<TxnType> = new Set<TxnType>([
-  "expense",
-  "loan_given",
-  "repayment_out",
-]);
+/** Types that represent SPENDING — used for the per-day outflow subtotal.
+ *  Deliberately just "expense". `adjustment` doesn't belong (an opening
+ *  balance or reconciliation isn't spending). `loan_given`/`repayment_out`
+ *  don't either, even though money leaves an account: lending isn't spending
+ *  it, the cash becomes a receivable, not a loss — and loans already have
+ *  their own totals on /loans. Folding them in here double-counted the same
+ *  rupee as both "spent" and "owed to you" at once. */
+const OUTFLOW: ReadonlySet<TxnType> = new Set<TxnType>(["expense"]);
 
 export interface DayGroup {
   label: string;

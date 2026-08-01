@@ -27,15 +27,21 @@ export default async function LoansPage() {
     principal: l.principal,
     outstanding: l.outstanding,
     status: l.status,
+    excludeFromTotal: l.exclude_from_total,
   });
 
   const open = allLoans.filter((l) => l.status === "open").map(toSummary);
   const settled = allLoans.filter((l) => l.status === "settled").map(toSummary);
 
-  const owedToYou = open
+  // Same rule as Home's net worth and /investments' portfolio summary — a loan
+  // taken out of the total must not quietly reappear in this page's own Position
+  // band, and the row itself still shows in the list either way.
+  const counted = open.filter((l) => !l.excludeFromTotal);
+  const excludedCount = open.length - counted.length;
+  const owedToYou = counted
     .filter((l) => l.direction === "given")
     .reduce((sum, l) => sum + l.outstanding, 0);
-  const youOwe = open
+  const youOwe = counted
     .filter((l) => l.direction === "taken")
     .reduce((sum, l) => sum + l.outstanding, 0);
   const net = owedToYou - youOwe;
@@ -51,7 +57,10 @@ export default async function LoansPage() {
           <EmptyNote>No loans yet — lend or borrow, and it&apos;ll show up here.</EmptyNote>
         ) : (
           <>
-            <SectionHead label="Position" />
+            <SectionHead
+              label="Position"
+              meta={excludedCount > 0 ? `${excludedCount} not counted` : undefined}
+            />
             <KpiBand>
               <KpiTile label="Owed to you" value={formatPKRWhole(owedToYou)} tone="in" />
               <KpiTile label="You owe" value={formatPKRWhole(youOwe)} tone="out" />

@@ -8,10 +8,17 @@ import { SectionHead } from "@/components/SectionHead";
 import { KpiBand, KpiTile } from "@/components/Kpi";
 import { RangeTabs, resolveRange } from "@/components/RangeTabs";
 import { AreaChart } from "@/components/charts/AreaChart";
+import { Donut, type DonutSlice } from "@/components/charts/Donut";
 import { RankBars, type RankRow } from "@/components/charts/RankBars";
 import { fetchDailySpend, fetchPeriodTotals, deltaPct } from "@/lib/dashboard";
 
 export const dynamic = "force-dynamic";
+
+// Past this many real categories, the rest fold into "Other" — the dataviz
+// skill's own ceiling for a part-to-whole donut ("≤ 6 segments"; kept to 4
+// here plus Other so every real slice can also carry a searched, non-status
+// hue — see globals.css's --color-cat-* note).
+const DONUT_MAX_SLICES = 4;
 
 export default async function InsightsPage({
   searchParams,
@@ -25,39 +32,61 @@ export default async function InsightsPage({
   const scope = await forUser(session.userId);
 
   const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const from = new Date(startOfToday);
-  from.setDate(from.getDate() - (range.days - 1));
-  // The immediately preceding window of equal length — comparing a 30-day span
-  // against "last calendar month" would compare unequal periods and inflate or
-  // deflate every delta on the page.
-  const prevFrom = new Date(from);
-  prevFrom.setDate(prevFrom.getDate() - range.days);
+  const { from, to, prevFrom, prevTo } = range.resolve(now);
 
-  const [totals, prevTotals, daily, byRoot, prevByRoot, categories] = await Promise.all([
-    fetchPeriodTotals(scope, from),
-    fetchPeriodTotals(scope, prevFrom, from),
-    fetchDailySpend(scope, from, now),
-    rootSpend(scope, from),
+  const [totals, prevTotals, daily, byLeaf, prevByRoot, categories] = await Promise.all([
+    fetchPeriodTotals(scope, from, undefined),
+    fetchPeriodTotals(scope, prevFrom, prevTo),
+    fetchDailySpend(scope, from, to),
+    // Leaf-level (category_id), current period only — one query gives both
+    // the root totals AND what's inside each one, instead of a second
+    // round-trip per root the moment a user taps to expand it.
+    leafSpend(scope, from),
     rootSpend(scope, prevFrom, from),
-    scope.categories.find({ parent_id: null }).toArray(),
+    scope.categories.find({}).toArray(),
   ]);
 
-  const names = new Map(categories.map((c) => [c._id.toHexString(), c.name] as const));
+  const catById = new Map(categories.map((c) => [c._id.toHexString(), c] as const));
   const prevByRootMap = new Map(prevByRoot.map((r) => [String(r._id), r.total] as const));
 
-  const rows: RankRow[] = byRoot
-    .filter((r) => r._id)
-    .map((r) => ({
-      id: String(r._id),
-      name: names.get(String(r._id)) ?? "Uncategorised",
-      total: r.total,
-      deltaPct: deltaPct(r.total, prevByRootMap.get(String(r._id)) ?? 0),
+  // Roll each leaf up to its root, and keep the leaf itself as a "child" only
+  // when it actually IS a child (a transaction categorised directly onto a
+  // root has no meaningful sub-breakdown to show).
+  const rootTotals = new Map<string, number>();
+  const rootNames = new Map<string, string>();
+  const childrenByRoot = new Map<string, { id: string; name: string; total: number }[]>();
+
+  for (const r of byLeaf) {
+    if (!r._id) continue; // uncategorised — matches the prior behaviour of dropping it here too
+    const cat = catById.get(String(r._id));
+    if (!cat) continue;
+    const rootId = cat.root_id.toHexString();
+    const root = catById.get(rootId);
+
+    rootTotals.set(rootId, (rootTotals.get(rootId) ?? 0) + r.total);
+    rootNames.set(rootId, root?.name ?? "Uncategorised");
+
+    if (cat.parent_id) {
+      const list = childrenByRoot.get(rootId) ?? [];
+      list.push({ id: String(r._id), name: cat.name, total: r.total });
+      childrenByRoot.set(rootId, list);
+    }
+  }
+
+  const rows: RankRow[] = [...rootTotals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([rootId, total]) => ({
+      id: rootId,
+      name: rootNames.get(rootId) ?? "Uncategorised",
+      total,
+      deltaPct: deltaPct(total, prevByRootMap.get(rootId) ?? 0),
+      children: childrenByRoot.get(rootId),
     }));
 
   const spendTotal = rows.reduce((sum, r) => sum + r.total, 0);
   const net = totals.income - totals.expense;
   const spendDelta = deltaPct(totals.expense, prevTotals.expense);
+  const incomeDelta = deltaPct(totals.income, prevTotals.income);
 
   const daysWithSpend = daily.filter((d) => d.value > 0);
   const dailyAvg = daily.length > 0 ? totals.expense / daily.length : 0;
@@ -66,11 +95,27 @@ export default async function InsightsPage({
     null,
   );
 
+  // Top N by spend feed the donut; anything past that folds into one "Other"
+  // slice rather than the chart growing a 9th color that reads worse than
+  // the fold would have.
+  const donutSlices: DonutSlice[] = rows.slice(0, DONUT_MAX_SLICES).map((r) => ({
+    key: r.id,
+    label: r.name,
+    value: r.total,
+  }));
+  const otherTotal = rows.slice(DONUT_MAX_SLICES).reduce((sum, r) => sum + r.total, 0);
+  if (otherTotal > 0) {
+    donutSlices.push({ key: "other", label: "Other", value: otherTotal, isOther: true });
+  }
+
   const empty = totals.expense === 0 && totals.income === 0;
 
   return (
     <>
-      <TopBar title="Insights" eyebrow={`${range.label} · to ${now.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`} />
+      <TopBar
+        title="Insights"
+        eyebrow={`${range.label} · to ${now.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
+      />
       <main className="mx-auto max-w-md px-4 pb-6 pt-4">
         <RangeTabs active={range.key} basePath="/insights" />
 
@@ -80,6 +125,13 @@ export default async function InsightsPage({
           </div>
         ) : (
           <>
+            {/* Spent / Received / Net — the same three figures Home leads
+                with, so "how much moved" reads the same way everywhere. The
+                old band swapped "Received" for a per-day average, which
+                meant this screen could tell you what you spent but not
+                whether anything came in at all. Per-day still matters, it
+                just moved to the chart's own caption below, next to the
+                other day-level facts. */}
             <section className="mt-5">
               <SectionHead label="Summary" />
               <KpiBand>
@@ -88,17 +140,25 @@ export default async function InsightsPage({
                   value={formatPKRWhole(totals.expense)}
                   delta={spendDelta !== null ? { pct: spendDelta, goodWhen: "down" } : undefined}
                 />
-                <KpiTile label="Per day" value={formatPKRWhole(dailyAvg)} footnote={`over ${daily.length}d`} />
+                <KpiTile
+                  label="Received"
+                  value={formatPKRWhole(totals.income)}
+                  delta={incomeDelta !== null ? { pct: incomeDelta, goodWhen: "up" } : undefined}
+                />
                 <KpiTile
                   label="Net"
                   value={`${net < 0 ? "−" : "+"}${formatPKRWhole(Math.abs(net))}`}
                   tone={net < 0 ? "out" : "in"}
                 />
               </KpiBand>
+              <p className="t-label mt-2 px-1 text-fg-faint">vs {range.comparisonLabel}</p>
             </section>
 
             <section className="mt-5">
-              <SectionHead label="Daily spending" meta={busiest && busiest.value > 0 ? `peak ${busiest.fullLabel}` : undefined} />
+              <SectionHead
+                label="Daily spending"
+                meta={busiest && busiest.value > 0 ? `peak ${busiest.fullLabel}` : undefined}
+              />
               <div className="rounded-chip border border-rule bg-surface-lift p-4 pb-2">
                 {daily.length < 2 || totals.expense === 0 ? (
                   <p className="t-label py-6 text-center text-fg-faint">
@@ -109,10 +169,14 @@ export default async function InsightsPage({
                     <AreaChart
                       points={daily}
                       height={190}
-                      ariaLabel={`Daily spending over the last ${range.label}`}
+                      ariaLabel={`Daily spending over ${range.label}`}
                     />
                     <p className="t-label mt-2 border-t border-rule pt-2.5 text-fg-muted">
-                      Spent on {daysWithSpend.length} of {daily.length} days.
+                      Spent on {daysWithSpend.length} of {daily.length} days, averaging{" "}
+                      <span className="tnum font-num text-fg">
+                        <Sensitive>{formatPKRWhole(dailyAvg)}</Sensitive>
+                      </span>
+                      /day.
                       {busiest && busiest.value > 0 ? (
                         <>
                           {" "}Heaviest was{" "}
@@ -130,7 +194,20 @@ export default async function InsightsPage({
             </section>
 
             <section className="mt-5">
-              <SectionHead label="Where it went" meta={`${rows.length} categories`} />
+              <SectionHead label="Breakdown" meta={`${rows.length} categories`} />
+              <div className="rounded-chip border border-rule bg-surface-lift p-4">
+                {donutSlices.length === 0 ? (
+                  <p className="t-label py-6 text-center text-fg-faint">
+                    No expenses in this range.
+                  </p>
+                ) : (
+                  <Donut slices={donutSlices} total={spendTotal} />
+                )}
+              </div>
+            </section>
+
+            <section className="mt-5">
+              <SectionHead label="Where it went" />
               <div className="rounded-chip border border-rule bg-surface-lift px-4 py-1">
                 {rows.length === 0 ? (
                   <p className="t-label py-6 text-center text-fg-faint">
@@ -142,8 +219,7 @@ export default async function InsightsPage({
               </div>
               {rows.length > 0 ? (
                 <p className="t-label mt-2 px-1 text-fg-faint">
-                  Percentages are share of spend; the coloured figure is change vs the previous{" "}
-                  {range.days} days.
+                  Percentages are share of spend; the coloured figure is change vs {range.comparisonLabel}.
                 </p>
               ) : null}
             </section>
@@ -202,6 +278,25 @@ function rootSpend(scope: Awaited<ReturnType<typeof forUser>>, from: Date, to?: 
         },
       },
       { $group: { _id: "$root_category_id", total: { $sum: "$amount" } } },
+      { $sort: { total: -1 } },
+    ])
+    .toArray();
+}
+
+/** Same shape as rootSpend, grouped by the leaf category instead — used only
+ *  for the current period, where the page needs the sub-category detail
+ *  behind each root, not just the root's own total. */
+function leafSpend(scope: Awaited<ReturnType<typeof forUser>>, from: Date, to?: Date) {
+  return scope.transactions
+    .aggregate<{ _id: unknown; total: number }>([
+      {
+        $match: {
+          type: "expense",
+          date: to ? { $gte: from, $lt: to } : { $gte: from },
+          deleted_at: { $exists: false },
+        },
+      },
+      { $group: { _id: "$category_id", total: { $sum: "$amount" } } },
       { $sort: { total: -1 } },
     ])
     .toArray();

@@ -12,7 +12,11 @@ export interface LedgerQueryOptions {
   limit?: number;
 }
 
-const OUTFLOW_TYPES = ["expense", "loan_given", "repayment_out"];
+// "Spending" for History's total — just expenses. Loans move money out of an
+// account too, but lending isn't spending it (the cash becomes a receivable,
+// tracked on /loans with its own totals), so including them here would count
+// the same rupee as both "spent" and "owed to you" at once.
+const OUTFLOW_TYPES = ["expense"];
 
 export function encodeCursor(t: Pick<TransactionDoc, "date" | "_id">): string {
   return `${t.date.toISOString()}_${t._id.toHexString()}`;

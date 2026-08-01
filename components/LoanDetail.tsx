@@ -16,9 +16,12 @@ import {
   recordRepaymentAction,
   addToLoanAction,
   writeOffLoanAction,
+  setLoanFlagAction,
   deleteLoanAction,
   type LoanActionResult,
 } from "@/actions/loans";
+import { Switch } from "@/components/Switch";
+import { SectionHead } from "@/components/SectionHead";
 import { formatPKRWhole } from "@/lib/format";
 import { Sensitive } from "@/components/Sensitive";
 
@@ -29,6 +32,7 @@ export interface LoanDetailData {
   principal: number;
   outstanding: number;
   writtenOff?: number;
+  excludeFromTotal: boolean;
   status: "open" | "settled";
   openedOn: string;
 }
@@ -125,6 +129,14 @@ export function LoanDetail({
             </div>
           </div>
         ) : null}
+
+        {loan.excludeFromTotal ? (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <span className="t-micro rounded-full border border-rule bg-surface-sunk px-2 py-1 text-fg-muted">
+              Not in net worth
+            </span>
+          </div>
+        ) : null}
       </div>
 
       {!settled ? (
@@ -168,7 +180,10 @@ export function LoanDetail({
                 <div className="min-w-0 flex-1">
                   <div className="t-body truncate">{KIND_LABEL[t.kind]}</div>
                   <div className="t-label truncate text-fg-muted">
-                    {[t.accountName ?? "Unspecified account", t.date].filter(Boolean).join(" · ")}
+                    {/* "—" for no account, not "Unspecified account" — down a
+                        column of rows that reads as a repeated error rather
+                        than "the user chose not to name one". */}
+                    {[t.accountName ?? "—", t.date].filter(Boolean).join(" · ")}
                   </div>
                 </div>
                 <span className="tnum shrink-0 font-num text-[15px]">
@@ -181,8 +196,49 @@ export function LoanDetail({
         </div>
       ) : null}
 
+      <FlagsSection loan={loan} />
       <LoanFooterActions loanId={loan.id} settled={settled} personName={loan.personName} />
     </div>
+  );
+}
+
+function FlagsSection({ loan }: { loan: LoanDetailData }) {
+  const [checked, setChecked] = useState(loan.excludeFromTotal);
+  const [failed, setFailed] = useState(false);
+
+  async function toggle() {
+    const next = !checked;
+    setChecked(next);
+    setFailed(false);
+
+    const body = new FormData();
+    body.set("loan_id", loan.id);
+    body.set("value", String(next));
+
+    const result = await setLoanFlagAction(undefined, body);
+    if (result?.error) {
+      setChecked(!next);
+      setFailed(true);
+    }
+  }
+
+  return (
+    <section>
+      <SectionHead label="This loan" />
+      <div className="overflow-hidden rounded-chip border border-rule">
+        <div className="flex items-start gap-3 px-3.5 py-3">
+          <div className="min-w-0 flex-1">
+            <div className="t-body">Leave out of net worth</div>
+            <div className="t-label text-fg-muted">
+              Repayments and additions still record here, but the outstanding amount stops
+              counting toward your total assets.
+            </div>
+            {failed ? <div className="t-label mt-1 text-out">Couldn&apos;t save that.</div> : null}
+          </div>
+          <Switch checked={checked} onChange={() => void toggle()} label="Leave out of net worth" />
+        </div>
+      </div>
+    </section>
   );
 }
 

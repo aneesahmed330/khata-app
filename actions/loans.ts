@@ -160,6 +160,28 @@ export async function writeOffLoanAction(
   redirect(`/loans/${loanId}`);
 }
 
+/** Whether this loan's outstanding counts toward net worth — layered under
+ *  the global "Count loans" switch in Settings, which this can only narrow
+ *  further, never override back on. */
+export async function setLoanFlagAction(
+  _prev: LoanActionResult | undefined,
+  formData: FormData,
+): Promise<LoanActionResult> {
+  const session = await getSession();
+  if (!session) return { error: "Session expired. Please log in again." };
+
+  const loanId = String(formData.get("loan_id") ?? "");
+  const scope = await forUser(session.userId);
+  const loan = await loadLoan(scope, loanId);
+  if (!loan) return { error: "Loan not found." };
+
+  const value = String(formData.get("value") ?? "") === "true";
+  await scope.loans.updateOne({ _id: loan._id }, { $set: { exclude_from_total: value } });
+
+  revalidateLoans(loanId);
+  return {};
+}
+
 /** Reverses every transaction attached to the loan — restoring the balances
  *  they moved — and then removes the loan itself. Same shape as deleting a
  *  holding: the transactions keep their soft-deleted record, the container

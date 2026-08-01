@@ -34,6 +34,12 @@ export interface UserDoc {
   timezone: string;
   default_account_id: ObjectId | null;
   tts_enabled: boolean;
+  // Global net-worth switches — absent means "on" (existing users shouldn't
+  // silently lose loans/investments from a total they've never touched this
+  // setting for). Off zeroes the WHOLE category regardless of any per-item
+  // exclude_from_total, which only ever narrows further, never overrides this.
+  count_loans_in_net_worth?: boolean;
+  count_investments_in_net_worth?: boolean;
   // No speech_lang: voice is recorded as audio and sent to Gemini, which
   // handles Roman Urdu / Urdu / English without being told which to expect.
   // Browser ASR (which needed a BCP-47 tag) is no longer used at all.
@@ -149,6 +155,11 @@ export interface LoanDoc {
    *  cash left the account before the app ever saw it. */
   account_id?: ObjectId;
   status: LoanStatus;
+  // Same idea as AccountDoc/HoldingDoc's flag of the same name: this loan's
+  // outstanding stops counting toward net worth. Layered under the global
+  // count_loans_in_net_worth switch — that one turns the whole category off;
+  // this one carves a single loan out while the category stays on.
+  exclude_from_total?: boolean;
   due_date?: Date;
   /** Set when a loan was closed without the remainder being repaid — forgiven,
    *  rounded off, or settled outside the ledger. Kept so a settled loan can
