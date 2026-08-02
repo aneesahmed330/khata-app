@@ -15,7 +15,11 @@ export default async function AddPage() {
   if (!session) return null;
 
   const scope = await forUser(session.userId);
-  const accounts = await scope.accounts.find({ archived: { $ne: true } }).toArray();
+  const [accounts, categories] = await Promise.all([
+    scope.accounts.find({ archived: { $ne: true } }).toArray(),
+    scope.categories.find({}).toArray(),
+  ]);
+  const categoryById = new Map(categories.map((c) => [c._id.toHexString(), c] as const));
 
   return (
     <main className="mx-auto max-w-md px-4">
@@ -37,7 +41,15 @@ export default async function AddPage() {
         </Link>
       </div>
 
-      <AddForm accounts={accounts.map((a) => ({ id: a._id.toHexString(), name: a.name }))} />
+      <AddForm
+        accounts={accounts.map((a) => ({ id: a._id.toHexString(), name: a.name }))}
+        categories={categories.map((c) => ({
+          id: c._id.toHexString(),
+          name: c.name,
+          type: c.type,
+          parentName: c.parent_id ? categoryById.get(c.parent_id.toHexString())?.name : undefined,
+        }))}
+      />
 
       <div className="mt-6 text-center">
         <Link

@@ -92,7 +92,20 @@ function metaLine(parsed: ParsedIntent, accounts: { id: string; name: string }[]
     .join(" · ");
 }
 
-export function AddForm({ accounts }: { accounts: { id: string; name: string }[] }) {
+interface CategoryOption {
+  id: string;
+  name: string;
+  type: "expense" | "income";
+  parentName?: string;
+}
+
+export function AddForm({
+  accounts,
+  categories,
+}: {
+  accounts: { id: string; name: string }[];
+  categories: CategoryOption[];
+}) {
   const router = useRouter();
   const [text, setText] = useState("");
   const [step, setStep] = useState<Step>({ kind: "input" });
@@ -298,6 +311,7 @@ export function AddForm({ accounts }: { accounts: { id: string; name: string }[]
         <PreviewCard
           step={step}
           accounts={accounts}
+          categories={categories}
           onCommit={commit}
           onReset={reset}
           onEdit={editRaw}
@@ -378,12 +392,14 @@ function Chip({ label, onClick, primary }: { label: string; onClick: () => void;
 function PreviewCard({
   step,
   accounts,
+  categories,
   onCommit,
   onReset,
   onEdit,
 }: {
   step: Extract<Step, { kind: "preview" }>;
   accounts: { id: string; name: string }[];
+  categories: CategoryOption[];
   onCommit: (step: Extract<Step, { kind: "preview" }>, overrides?: Record<string, unknown>) => void;
   onReset: () => void;
   onEdit: (text: string) => void;
@@ -414,6 +430,26 @@ function PreviewCard({
     actions[pending.actionIndex] = { ...actions[pending.actionIndex]!, [field]: accountId };
     onCommit({ ...step, parsed: { ...parsed, actions }, pending: undefined });
   }
+
+  function pickCategoryFor(categoryId: string) {
+    if (pending?.actionIndex === undefined) {
+      onCommit({ ...step, parsed: { ...parsed, category_id: categoryId }, pending: undefined });
+      return;
+    }
+    const actions = [...(parsed.actions ?? [])];
+    actions[pending.actionIndex] = { ...actions[pending.actionIndex]!, category_id: categoryId };
+    onCommit({ ...step, parsed: { ...parsed, actions }, pending: undefined });
+  }
+
+  // Which categories to offer for the pending action's own intent — an
+  // add_income entry has no business being offered expense categories.
+  const pendingIntent =
+    pending?.actionIndex !== undefined
+      ? previewActions[pending.actionIndex]?.intent
+      : parsed.intent;
+  const categoryOptions = categories.filter(
+    (c) => c.type === (pendingIntent === "add_income" ? "income" : "expense"),
+  );
 
   return (
     <div className="anim-rise">
@@ -471,7 +507,9 @@ function PreviewCard({
           <p className="t-label mb-2.5 text-fg-muted">
             {pending.actionIndex !== undefined ? `For "${summaryLine(previewActions[pending.actionIndex]!)}": ` : ""}
             {pending.reason === "category"
-              ? "This category doesn't exist — create it?"
+              ? pending.proposal
+                ? "This category doesn't exist — create it?"
+                : "What category is this?"
               : pending.reason === "account"
                 ? pending.proposal
                   ? "This account doesn't exist — create it?"
@@ -488,6 +526,15 @@ function PreviewCard({
                 onClick={() => onCommit(step, overridesFor({ confirmCreateCategory: true }))}
               />
             ) : null}
+            {pending.reason === "category" && !pending.proposal
+              ? categoryOptions.map((c) => (
+                  <Chip
+                    key={c.id}
+                    label={c.parentName ? `${c.name} (${c.parentName})` : c.name}
+                    onClick={() => pickCategoryFor(c.id)}
+                  />
+                ))
+              : null}
             {pending.reason === "account" && pending.proposal ? (
               <Chip
                 primary

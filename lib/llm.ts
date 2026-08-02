@@ -264,8 +264,9 @@ You output ONLY structured data matching the provided schema — never prose.
 Rules:
 - Pick the MOST SPECIFIC existing category (a child, e.g. "Transport > InDrive"), not just its root ("Transport"). If nothing fits, propose a new_category with parent_id or parent_name set — never propose a new root unless truly nothing existing fits.
 - Never propose depth beyond 2 levels (root -> child only).
+- category_id (or new_category) is MANDATORY for every add_expense and add_income — never leave both unset. Even a vague purchase ("cups", "plastic items", "kuch samaan") gets the best-fit existing category (e.g. Home > Household, Food > Groceries) or a proposed new_category. The only categoryless intents are transfer, loan actions, and declare_account, which have no category at all.
 - Preserve context the user stated (e.g. "flat se office") in the "note" field — never drop it.
-- "item" is the THING involved, as a short noun phrase of 1-4 words ("Biryani", "Petrol", "Flat rent"). NEVER put the user's whole sentence in it. If there is no specific thing beyond the category itself, leave item unset rather than echoing the sentence.
+- "item" is the THING involved, as a short noun phrase of 1-4 words, ALWAYS TRANSLATED TO ENGLISH regardless of what language the user spoke — "dhood" -> "Milk", "tamatar" -> "Tomatoes", "pyaz"/"onion" -> "Onions", "adrak" -> "Ginger" ("Biryani", "Petrol", "Flat rent" stay as-is since they're already the common English/loanword form). Never store the Roman Urdu or Urdu-script word itself, and never put the user's whole sentence in it — the same item spoken two different ways must always be saved under the same English name. If there is no specific thing beyond the category itself, leave item unset rather than echoing the sentence.
 - Accounts: if the user names one, match it. If the message says something like "<account> mein <amount> pari hai", the intent is declare_account with a declared_account object — never propose a *new account* from an ordinary expense/income message.
 - If the user has an open loan with a named person, set loan_action ("new" | "append" | "repayment") based on context — but never guess the funding account when money moves; leave account_id unset and add "account_id" to missing instead.
 - Loans and income NEVER default to an account automatically — always leave account_id unset (add "account_id" to missing) unless the user names one explicitly.
@@ -382,6 +383,19 @@ export class LLMQuotaError extends Error {
  *  before it escalates to the public LLMQuotaError. */
 class ProviderQuotaError extends Error {}
 
+// @google/genai's ClientError/ServerError never set a `.status` property —
+// the code only ever appears baked into the message string ("got status: 429
+// Too Many Requests. ..."), which made the `err.status === 429` check below
+// dead code: it always read undefined, so a real 429 fell through to the
+// generic `throw err` and Groq was never actually tried. Confirmed by running
+// scripts/repair-categories.ts against live quota — every rate-limited row
+// surfaced as a hard failure instead of falling back.
+function geminiStatus(err: unknown): number | undefined {
+  const message = err instanceof Error ? err.message : "";
+  const match = message.match(/got status: (\d+)/);
+  return match ? Number(match[1]) : undefined;
+}
+
 /** Gemini call + validate. Throws ProviderQuotaError on 429. */
 async function generateFromGemini(
   contents: Parameters<GoogleGenAI["models"]["generateContent"]>[0]["contents"],
@@ -402,8 +416,7 @@ async function generateFromGemini(
       },
     });
   } catch (err) {
-    const status = (err as { status?: number })?.status;
-    if (status === 429) throw new ProviderQuotaError("Gemini quota exhausted");
+    if (geminiStatus(err) === 429) throw new ProviderQuotaError("Gemini quota exhausted");
     throw err;
   }
 

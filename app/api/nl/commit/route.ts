@@ -284,6 +284,15 @@ async function resolveExpenseOrIncome(
     }
   }
 
+  // Every expense/income needs a category — a silently uncategorised entry is
+  // what made History's "spent" total unreadable (some rows had no bucket at
+  // all). The LLM is instructed to always propose one, but this is the
+  // backstop for when it doesn't: same "never guess, ask a chip" rule as the
+  // missing-account case just below, just for category instead.
+  if (!categoryId) {
+    return { ok: false, status: 200, body: { needsConfirmation: true, reason: "category", missing: ["category_id"] } };
+  }
+
   // add_income and any expense without a resolvable/default account always
   // require an explicit account — plan.md §4.2. The parse step already marks
   // this as `missing`, but commit re-checks so a stale client can't slip a

@@ -34,7 +34,7 @@ export default async function InsightsPage({
   const now = new Date();
   const { from, to, prevFrom, prevTo } = range.resolve(now);
 
-  const [totals, prevTotals, daily, byLeaf, prevByRoot, categories] = await Promise.all([
+  const [totals, prevTotals, daily, byLeaf, byItem, prevByRoot, categories] = await Promise.all([
     fetchPeriodTotals(scope, from, undefined),
     fetchPeriodTotals(scope, prevFrom, prevTo),
     fetchDailySpend(scope, from, to),
@@ -42,6 +42,10 @@ export default async function InsightsPage({
     // the root totals AND what's inside each one, instead of a second
     // round-trip per root the moment a user taps to expand it.
     leafSpend(scope, from),
+    // One level deeper still: the actual `item` names behind each leaf
+    // category (Milk/Onions/Ginger behind "Groceries") — a category total
+    // alone can't answer "which items", only a name-level breakdown can.
+    itemSpend(scope, from),
     rootSpend(scope, prevFrom, from),
     scope.categories.find({}).toArray(),
   ]);
@@ -49,12 +53,24 @@ export default async function InsightsPage({
   const catById = new Map(categories.map((c) => [c._id.toHexString(), c] as const));
   const prevByRootMap = new Map(prevByRoot.map((r) => [String(r._id), r.total] as const));
 
+  // byItem is already sorted total-desc (its own aggregation's $sort), so
+  // bucketing it into per-category lists here preserves that order within
+  // each bucket — no need to re-sort per category.
+  const itemsByCategory = new Map<string, { name: string; total: number }[]>();
+  for (const r of byItem) {
+    if (!r._id.category) continue; // uncategorised — same drop behaviour as byLeaf
+    const catId = String(r._id.category);
+    const list = itemsByCategory.get(catId) ?? [];
+    list.push({ name: r._id.item ?? "Other", total: r.total });
+    itemsByCategory.set(catId, list);
+  }
+
   // Roll each leaf up to its root, and keep the leaf itself as a "child" only
   // when it actually IS a child (a transaction categorised directly onto a
   // root has no meaningful sub-breakdown to show).
   const rootTotals = new Map<string, number>();
   const rootNames = new Map<string, string>();
-  const childrenByRoot = new Map<string, { id: string; name: string; total: number }[]>();
+  const childrenByRoot = new Map<string, { id: string; name: string; total: number; items?: { name: string; total: number }[] }[]>();
 
   for (const r of byLeaf) {
     if (!r._id) continue; // uncategorised — matches the prior behaviour of dropping it here too
@@ -68,20 +84,27 @@ export default async function InsightsPage({
 
     if (cat.parent_id) {
       const list = childrenByRoot.get(rootId) ?? [];
-      list.push({ id: String(r._id), name: cat.name, total: r.total });
+      list.push({ id: String(r._id), name: cat.name, total: r.total, items: itemsByCategory.get(String(r._id)) });
       childrenByRoot.set(rootId, list);
     }
   }
 
   const rows: RankRow[] = [...rootTotals.entries()]
     .sort((a, b) => b[1] - a[1])
-    .map(([rootId, total]) => ({
-      id: rootId,
-      name: rootNames.get(rootId) ?? "Uncategorised",
-      total,
-      deltaPct: deltaPct(total, prevByRootMap.get(rootId) ?? 0),
-      children: childrenByRoot.get(rootId),
-    }));
+    .map(([rootId, total]) => {
+      const children = childrenByRoot.get(rootId);
+      return {
+        id: rootId,
+        name: rootNames.get(rootId) ?? "Uncategorised",
+        total,
+        deltaPct: deltaPct(total, prevByRootMap.get(rootId) ?? 0),
+        children,
+        // Only a root with NO category children of its own is itself the
+        // leaf — e.g. "Health"/"Home" in the screenshots, vs "Food" whose
+        // real leaves are Groceries/Chai-Nashta.
+        items: children ? undefined : itemsByCategory.get(rootId),
+      };
+    });
 
   const spendTotal = rows.reduce((sum, r) => sum + r.total, 0);
   const net = totals.income - totals.expense;
@@ -297,6 +320,26 @@ function leafSpend(scope: Awaited<ReturnType<typeof forUser>>, from: Date, to?: 
         },
       },
       { $group: { _id: "$category_id", total: { $sum: "$amount" } } },
+      { $sort: { total: -1 } },
+    ])
+    .toArray();
+}
+
+/** One level deeper than leafSpend — grouped by {category, item} instead of
+ *  category alone, current period only. This is what actually answers "which
+ *  items" inside a category ("Groceries" -> Milk 460, Onions 450, ...); a
+ *  category-only total can never say that on its own. */
+function itemSpend(scope: Awaited<ReturnType<typeof forUser>>, from: Date, to?: Date) {
+  return scope.transactions
+    .aggregate<{ _id: { category: unknown; item: string | null }; total: number }>([
+      {
+        $match: {
+          type: "expense",
+          date: to ? { $gte: from, $lt: to } : { $gte: from },
+          deleted_at: { $exists: false },
+        },
+      },
+      { $group: { _id: { category: "$category_id", item: "$item" }, total: { $sum: "$amount" } } },
       { $sort: { total: -1 } },
     ])
     .toArray();

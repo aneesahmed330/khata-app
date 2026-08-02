@@ -52,6 +52,6 @@ export async function middleware(req: NextRequest) {
 // silently broke "Add to Home Screen" for anyone not already logged in.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api|preview-tmp|manifest.webmanifest|icon-192.png|icon-512.png|apple-icon.png).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api|manifest.webmanifest|icon-192.png|icon-512.png|apple-icon.png).*)",
   ],
 };
