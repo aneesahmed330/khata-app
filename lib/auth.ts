@@ -1,6 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 const COOKIE_NAME = "khata_session";
 const SESSION_DAYS = 30;
@@ -26,13 +26,19 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return bcrypt.compare(password, hash);
 }
 
-export async function createSessionCookie(payload: SessionPayload): Promise<void> {
-  const token = await new SignJWT(payload as unknown as Record<string, unknown>)
+/** Factored out of createSessionCookie so the mobile login route (which
+ *  returns the token in a JSON body instead of setting a cookie) shares the
+ *  exact same SignJWT call rather than a second copy of it. */
+export async function createSessionToken(payload: SessionPayload): Promise<string> {
+  return new SignJWT(payload as unknown as Record<string, unknown>)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DAYS}d`)
     .sign(getSecret());
+}
 
+export async function createSessionCookie(payload: SessionPayload): Promise<void> {
+  const token = await createSessionToken(payload);
   const store = await cookies();
   store.set(COOKIE_NAME, token, {
     httpOnly: true,
@@ -43,10 +49,23 @@ export async function createSessionCookie(payload: SessionPayload): Promise<void
   });
 }
 
+/** Checked in this order: `Authorization: Bearer <token>` (the mobile app,
+ *  which has no cookie jar of its own — it stores the token in
+ *  react-native-keychain and attaches it itself) first, the httpOnly cookie
+ *  (the web app) second. Every existing caller stays a zero-arg call — this
+ *  reads both sources itself via next/headers, same as it already read the
+ *  cookie, so no Route Handler needed to change to support mobile. */
 export async function getSession(): Promise<SessionPayload | null> {
-  const store = await cookies();
-  const token = store.get(COOKIE_NAME)?.value;
+  const hdrs = await headers();
+  const authHeader = hdrs.get("authorization");
+  let token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+
+  if (!token) {
+    const store = await cookies();
+    token = store.get(COOKIE_NAME)?.value;
+  }
   if (!token) return null;
+
   try {
     const { payload } = await jwtVerify(token, getSecret());
     if (typeof payload.userId !== "string" || typeof payload.email !== "string") return null;
