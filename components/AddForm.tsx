@@ -16,6 +16,7 @@ import {
   type CommitResponse,
 } from "@/components/ReceiptView";
 import { RecordingPanel } from "@/components/RecordingPanel";
+import { CategoryPicker, type CategoryOption } from "@/components/CategoryPicker";
 
 // Client-side mirror of the server response shape — kept local rather than
 // importing lib/schemas.ts's server-only siblings, which pull in the mongodb
@@ -90,13 +91,6 @@ function metaLine(parsed: ParsedIntent, accounts: { id: string; name: string }[]
   return [parsed.new_category?.name, account, date, parsed.new_tags?.join(" ")]
     .filter(Boolean)
     .join(" · ");
-}
-
-interface CategoryOption {
-  id: string;
-  name: string;
-  type: "expense" | "income";
-  parentName?: string;
 }
 
 export function AddForm({
@@ -526,15 +520,6 @@ function PreviewCard({
                 onClick={() => onCommit(step, overridesFor({ confirmCreateCategory: true }))}
               />
             ) : null}
-            {pending.reason === "category" && !pending.proposal
-              ? categoryOptions.map((c) => (
-                  <Chip
-                    key={c.id}
-                    label={c.parentName ? `${c.name} (${c.parentName})` : c.name}
-                    onClick={() => pickCategoryFor(c.id)}
-                  />
-                ))
-              : null}
             {pending.reason === "account" && pending.proposal ? (
               <Chip
                 primary
@@ -571,6 +556,21 @@ function PreviewCard({
               </>
             ) : null}
           </div>
+
+          {/* Shown for BOTH category cases. When there's no proposal it's the
+              only way to answer. When there IS one, "create a new category"
+              used to be the sole option and Cancel the only way out — so a
+              slightly-wrong proposal ("Plastic Items") meant either accepting
+              a junk category or losing the entry. */}
+          {pending.reason === "category" ? (
+            <div className="mt-3">
+              {pending.proposal ? (
+                <p className="t-micro mb-2 text-fg-faint">or pick an existing one</p>
+              ) : null}
+              <CategoryPicker categories={categoryOptions} onPick={pickCategoryFor} />
+            </div>
+          ) : null}
+
           <button
             type="button"
             onClick={onReset}

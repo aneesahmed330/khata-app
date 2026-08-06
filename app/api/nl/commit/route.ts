@@ -7,6 +7,7 @@ import {
   resolveOrCreatePerson,
   resolveOrDeclareAccount,
   resolveLoan,
+  learnItemAlias,
 } from "@/lib/resolve";
 import { postTransaction } from "@/lib/ledger";
 import { saveReceipt, type Effect } from "@/lib/receipt";
@@ -334,6 +335,9 @@ async function resolveExpenseOrIncome(
           source: ctx.source,
           confidence: ctx.confidence,
         });
+        // Remember item → category so the next "onion" is a zero-call Layer 1
+        // hit that lands in the same place, instead of another LLM guess.
+        await learnItemAlias(scope, parsed.item, categoryId);
         return posted.transactionId;
       },
     },

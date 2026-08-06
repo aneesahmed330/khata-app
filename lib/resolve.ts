@@ -178,6 +178,45 @@ export async function resolveOrCreateCategory(
   return { id: newId, rootId, created: true };
 }
 
+/** Teach Layer 1 that this item name means this category — plan.md §2.2's
+ *  correction loop, which was only half-wired: resolveOrCreateCategory above
+ *  learns an alias when a FUZZY name match happens, but the common path (the
+ *  LLM returning a `category_id` for an existing category) taught the system
+ *  nothing. So "onion" burned an LLM call every single time and could land in
+ *  a different category on each one, which is what made categorisation feel
+ *  random. With this, the second "onion" is a deterministic zero-call Layer 1
+ *  hit that always lands where the first one did.
+ *
+ *  Upsert, not insert: the newest decision wins, so correcting a category on
+ *  /txn/[id] re-points the alias instead of leaving the old mapping to win
+ *  next time. Multi-word items are fine — matchAlias does a padded substring
+ *  test, and longest-term-wins, so "flat rent" beats a bare "rent". */
+export async function learnItemAlias(
+  scope: UserScope,
+  item: string | undefined,
+  categoryId: ObjectId,
+): Promise<void> {
+  const term = item?.trim();
+  if (!term) return;
+  const normalized = normalizeName(term);
+  // A single character (or a bare number) would match almost any sentence.
+  if (normalized.length < 3 || /^\d+$/.test(normalized)) return;
+
+  await scope.aliases.raw().updateOne(
+    { user_id: scope.userId, term_normalized: normalized },
+    {
+      $set: {
+        term,
+        maps_to: { kind: "category", id: categoryId },
+        script: "latin",
+        source: "correction",
+      },
+      $setOnInsert: { user_id: scope.userId, term_normalized: normalized, weight: 1, hit_count: 0 },
+    },
+    { upsert: true },
+  );
+}
+
 // ── People ──────────────────────────────────────────────────────────────
 
 export async function resolveOrCreatePerson(

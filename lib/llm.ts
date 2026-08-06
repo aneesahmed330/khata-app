@@ -434,8 +434,21 @@ async function generateFromGemini(
 /** Groq call + validate — the fallback once Gemini's daily quota is spent.
  *  Raw fetch rather than the `openai` SDK: this is the only Groq call in the
  *  app, and its request shape is a plain JSON POST, so a whole extra
- *  dependency for one call wasn't worth it. Throws ProviderQuotaError on 429. */
-async function generateFromGroq(userContent: string, systemInstruction: string): Promise<ParsedIntent> {
+ *  dependency for one call wasn't worth it. Throws ProviderQuotaError on 429.
+ *
+ *  `strictSchema` false drops Groq's json_schema mode for plain json_object.
+ *  That is NOT a loosening of what we accept: ParsedIntentSchema (Zod) below
+ *  is the actual gate and runs identically either way — json_schema mode is
+ *  only a server-side guardrail that makes the model likelier to emit the
+ *  right shape first try. On a long multi-transaction message this model
+ *  reliably fails that guardrail with `json_validate_failed` and an EMPTY
+ *  failed_generation, which used to surface as a hard parse error even though
+ *  a plain-JSON retry answers correctly. */
+async function generateFromGroq(
+  userContent: string,
+  systemInstruction: string,
+  strictSchema = true,
+): Promise<ParsedIntent> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     throw new Error("GROQ_API_KEY is not set. Copy .env.example to .env.local and fill it in.");
@@ -450,10 +463,9 @@ async function generateFromGroq(userContent: string, systemInstruction: string):
         { role: "system", content: systemInstruction },
         { role: "user", content: userContent },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: { name: "parsed_intent", strict: true, schema: GROQ_RESPONSE_SCHEMA },
-      },
+      response_format: strictSchema
+        ? { type: "json_schema", json_schema: { name: "parsed_intent", strict: true, schema: GROQ_RESPONSE_SCHEMA } }
+        : { type: "json_object" },
       temperature: 0,
     }),
   });
@@ -461,6 +473,9 @@ async function generateFromGroq(userContent: string, systemInstruction: string):
   if (res.status === 429) throw new ProviderQuotaError("Groq quota exhausted");
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    if (strictSchema && body.includes("json_validate_failed")) {
+      return generateFromGroq(userContent, systemInstruction, false);
+    }
     throw new Error(`Groq request failed (${res.status}): ${body.slice(0, 300)}`);
   }
 

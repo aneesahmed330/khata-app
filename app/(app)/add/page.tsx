@@ -48,6 +48,7 @@ export default async function AddPage() {
           name: c.name,
           type: c.type,
           parentName: c.parent_id ? categoryById.get(c.parent_id.toHexString())?.name : undefined,
+          usageCount: c.usage_count,
         }))}
       />
 

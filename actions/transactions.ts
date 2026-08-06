@@ -6,6 +6,7 @@ import { ObjectId } from "mongodb";
 import { getSession } from "@/lib/auth";
 import { forUser } from "@/lib/scope";
 import { updateTransaction, reverseTransaction } from "@/lib/ledger";
+import { learnItemAlias } from "@/lib/resolve";
 
 export interface TxnActionResult {
   error?: string;
@@ -73,10 +74,12 @@ export async function updateTransactionAction(
     rootCategoryId = cat.root_id;
   }
 
+  const item = String(formData.get("item") ?? "").trim();
+
   try {
     await updateTransaction(scope, txn._id, {
       amount,
-      item: String(formData.get("item") ?? "").trim(),
+      item,
       note: String(formData.get("note") ?? "").trim(),
       date,
       account_id: accountId,
@@ -86,6 +89,12 @@ export async function updateTransactionAction(
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Update failed." };
   }
+
+  // A hand-fixed category is the strongest signal there is — the user is
+  // telling us the parse was wrong. Without this the same item re-parsed to
+  // the same wrong category forever (plan.md §2.2's correction loop, which
+  // previously only learned from fuzzy name matches inside resolve.ts).
+  if (categoryId) await learnItemAlias(scope, item, categoryId);
 
   revalidateLedger();
   redirect("/history");
