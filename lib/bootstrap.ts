@@ -4,15 +4,18 @@
 import { ObjectId } from "mongodb";
 import { getDb } from "./db";
 import { forUser } from "./scope";
-import { hashPassword } from "./auth";
+import { hashPassword, type GoogleIdentity } from "./auth";
 import { SEED_TREE, normalizeName } from "./taxonomy";
 import { ensureIndexes } from "./indexes";
 import type { UserDoc } from "./types";
 
 export interface BootstrapInput {
   email: string;
-  password: string;
   name: string;
+  // Exactly one of these is expected: a password for the email/password
+  // signup path, a Google `sub` for the Google sign-in path.
+  password?: string;
+  googleId?: string;
 }
 
 export interface BootstrapResult {
@@ -30,12 +33,13 @@ export async function bootstrapUser(input: BootstrapInput): Promise<BootstrapRes
   }
 
   const userId = new ObjectId();
-  const passwordHash = await hashPassword(input.password);
+  const passwordHash = input.password ? await hashPassword(input.password) : null;
 
   const userDoc: UserDoc = {
     _id: userId,
     email: input.email.toLowerCase(),
     password_hash: passwordHash,
+    google_id: input.googleId,
     name: input.name,
     currency: "PKR",
     timezone: "Asia/Karachi",
@@ -130,4 +134,32 @@ export async function bootstrapUser(input: BootstrapInput): Promise<BootstrapRes
   }
 
   return { userId };
+}
+
+/** Find-or-create for the Google sign-in path — looks up by `google_id`
+ *  first, then by email (to link an existing email/password account the
+ *  first time it's used with Google), and only falls through to
+ *  `bootstrapUser` for a genuinely new address. */
+export async function findOrCreateGoogleUser(identity: GoogleIdentity): Promise<UserDoc> {
+  const db = await getDb();
+  const users = db.collection<UserDoc>("users");
+  const email = identity.email.toLowerCase();
+
+  const byGoogleId = await users.findOne({ google_id: identity.sub });
+  if (byGoogleId) return byGoogleId;
+
+  const byEmail = await users.findOne({ email });
+  if (byEmail) {
+    await users.updateOne({ _id: byEmail._id }, { $set: { google_id: identity.sub } });
+    return { ...byEmail, google_id: identity.sub };
+  }
+
+  const { userId } = await bootstrapUser({
+    email,
+    name: identity.name,
+    googleId: identity.sub,
+  });
+  const created = await users.findOne({ _id: userId });
+  if (!created) throw new Error("Failed to create user.");
+  return created;
 }

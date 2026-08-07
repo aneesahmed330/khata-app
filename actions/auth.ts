@@ -25,7 +25,10 @@ export async function loginAction(
   const db = await getDb();
   const user = await db.collection<UserDoc>("users").findOne({ email });
 
-  if (!user || !(await verifyPassword(password, user.password_hash))) {
+  if (user && !user.password_hash) {
+    return { error: "This account uses Google sign-in." };
+  }
+  if (!user?.password_hash || !(await verifyPassword(password, user.password_hash))) {
     return { error: "Incorrect email or password." };
   }
 

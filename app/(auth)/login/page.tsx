@@ -4,6 +4,7 @@ import { useFormState, useFormStatus } from "react-dom";
 import { CircleAlert, Loader2 } from "lucide-react";
 import { loginAction, type LoginResult } from "@/actions/auth";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 export default function LoginPage() {
   const [state, formAction] = useFormState<LoginResult, FormData>(loginAction, {});
@@ -38,14 +39,13 @@ export default function LoginPage() {
             <SubmitButton />
           </form>
 
-          <p className="t-label mt-8 text-fg-faint">
-            No account?{" "}
-            Run{" "}
-            <code className="rounded-[4px] bg-surface-lift px-1.5 py-0.5 font-num text-[12px]">
-              npm run seed:user
-            </code>
-            .
-          </p>
+          <div className="my-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-rule" />
+            <span className="t-micro text-fg-faint">or</span>
+            <div className="h-px flex-1 bg-rule" />
+          </div>
+
+          <GoogleSignInButton />
         </div>
       </div>
     </main>

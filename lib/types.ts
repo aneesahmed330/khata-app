@@ -28,7 +28,12 @@ export type HoldingStatus = "open" | "closed";
 export interface UserDoc {
   _id: ObjectId;
   email: string;
-  password_hash: string;
+  // null for Google-only accounts — never set a password for them.
+  password_hash: string | null;
+  // Google's `sub` claim, set once a Google sign-in has been linked (either
+  // at account creation, or the first time an existing email/password user
+  // uses the Google button).
+  google_id?: string;
   name: string;
   currency: "PKR";
   timezone: string;

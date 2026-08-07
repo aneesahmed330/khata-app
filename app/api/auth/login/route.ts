@@ -19,7 +19,10 @@ export async function POST(req: Request) {
   const db = await getDb();
   const user = await db.collection<UserDoc>("users").findOne({ email });
 
-  if (!user || !(await verifyPassword(password, user.password_hash))) {
+  if (user && !user.password_hash) {
+    return NextResponse.json({ error: "This account uses Google sign-in." }, { status: 401 });
+  }
+  if (!user?.password_hash || !(await verifyPassword(password, user.password_hash))) {
     return NextResponse.json({ error: "Incorrect email or password." }, { status: 401 });
   }
 
