@@ -6,6 +6,7 @@ import {
   resolveOrCreateCategory,
   resolveOrCreatePerson,
   resolveOrDeclareAccount,
+  resolveOrCreateTag,
   resolveLoan,
   learnItemAlias,
 } from "@/lib/resolve";
@@ -238,6 +239,25 @@ function subActionAsIntent(action: SubAction): ParsedIntent {
   return { ...action, confidence: 1 };
 }
 
+/** Resolves each named tag to an existing or newly-created TagDoc — mirrors
+ *  resolveOrCreateCategory/resolveOrCreatePerson's auto-create-with-effect
+ *  pattern (plan.md §4.2's zero-blast-radius auto-creates), pushing a
+ *  "tag_created" effect for any tag seen for the first time. */
+async function resolveTagIds(
+  scope: UserScope,
+  names: string[] | undefined,
+  effects: Effect[],
+): Promise<ObjectId[]> {
+  if (!names || names.length === 0) return [];
+  const ids: ObjectId[] = [];
+  for (const name of names) {
+    const res = await resolveOrCreateTag(scope, name);
+    ids.push(res.id);
+    if (res.created) effects.push({ kind: "tag_created", name });
+  }
+  return ids;
+}
+
 // ── Expense / Income ─────────────────────────────────────────────────────
 
 async function resolveExpenseOrIncome(
@@ -304,6 +324,8 @@ async function resolveExpenseOrIncome(
   const account = await scope.accounts.findOne({ _id: new ObjectId(parsed.account_id) });
   if (!account) return { ok: false, status: 400, body: { error: "Account not found" } };
 
+  const tagIds = await resolveTagIds(scope, parsed.new_tags, effects);
+
   effects.push({
     kind: "transaction_added",
     item: parsed.item,
@@ -329,6 +351,7 @@ async function resolveExpenseOrIncome(
           category_id: categoryId,
           root_category_id: rootCategoryId,
           account_id: account._id,
+          tag_ids: tagIds,
           date,
           raw_text: ctx.rawText,
           input_mode: ctx.inputMode,
@@ -419,6 +442,7 @@ async function resolveLoanAction(
   const amount = parsed.amount;
   const date = parsed.date ? new Date(parsed.date) : new Date();
   const isOutflow = txnType === "loan_given" || txnType === "repayment_out";
+  const tagIds = await resolveTagIds(scope, parsed.new_tags, effects);
 
   // Placeholder loan effect — `outstanding` isn't known until postTransaction
   // actually applies the $inc, so this object is mutated in place inside
@@ -452,6 +476,7 @@ async function resolveLoanAction(
           account_id: account?._id,
           person_id: personId,
           loan_id: loanIdForTxn,
+          tag_ids: tagIds,
           date,
           note: parsed.note,
           raw_text: ctx.rawText,
@@ -509,17 +534,20 @@ async function resolveTransfer(
 
   const amount = parsed.amount;
   const date = parsed.date ? new Date(parsed.date) : new Date();
+  const effects: Effect[] = [{ kind: "transfer_made", from: from.name, to: to.name, amount }];
+  const tagIds = await resolveTagIds(scope, parsed.new_tags, effects);
 
   return {
     ok: true,
     resolved: {
-      effects: [{ kind: "transfer_made", from: from.name, to: to.name, amount }],
+      effects,
       commit: async () => {
         const posted = await postTransaction(scope, {
           type: "transfer",
           amount,
           account_id: from._id,
           to_account_id: to._id,
+          tag_ids: tagIds,
           date,
           note: parsed.note,
           raw_text: ctx.rawText,

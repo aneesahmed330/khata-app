@@ -65,6 +65,7 @@ export const SubActionSchema = z.object({
   person_name: z.string().max(50).optional(),
 
   new_category: NewCategorySchema.optional(),
+  new_tags: z.array(z.string().min(1).max(30)).max(5).optional(),
   declared_account: DeclaredAccountSchema.optional(),
   loan_action: LoanActionEnum.optional(),
 });

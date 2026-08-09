@@ -112,6 +112,7 @@ const GEMINI_RESPONSE_SCHEMA = {
             },
             required: ["name", "type", "balance"],
           },
+          new_tags: { type: Type.ARRAY, items: { type: Type.STRING } },
           loan_action: { type: Type.STRING, enum: ["new", "append", "repayment"] },
         },
         required: ["intent"],
@@ -188,12 +189,13 @@ const GROQ_SUB_ACTION_SCHEMA = {
     person_id: NSTR,
     person_name: NSTR,
     new_category: GROQ_NEW_CATEGORY_SCHEMA,
+    new_tags: { type: ["array", "null"], items: { type: "string" } },
     declared_account: GROQ_DECLARED_ACCOUNT_SCHEMA,
     loan_action: { type: ["string", "null"], enum: ["new", "append", "repayment", null] },
   },
   required: [
     "intent", "amount", "item", "date", "note", "category_id", "account_id",
-    "to_account_id", "person_id", "person_name", "new_category", "declared_account", "loan_action",
+    "to_account_id", "person_id", "person_name", "new_category", "new_tags", "declared_account", "loan_action",
   ],
   additionalProperties: false,
 } as const;

@@ -23,9 +23,13 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const txn = await scope.transactions.findOne({ _id: new ObjectId(params.id) });
   if (!txn || txn.deleted_at) return NextResponse.json({ error: "Entry not found." }, { status: 404 });
 
-  const [account, category] = await Promise.all([
+  const [account, toAccount, category, person, holding, tags] = await Promise.all([
     txn.account_id ? scope.accounts.findOne({ _id: txn.account_id }) : Promise.resolve(null),
+    txn.to_account_id ? scope.accounts.findOne({ _id: txn.to_account_id }) : Promise.resolve(null),
     txn.category_id ? scope.categories.findOne({ _id: txn.category_id }) : Promise.resolve(null),
+    txn.person_id ? scope.people.findOne({ _id: txn.person_id }) : Promise.resolve(null),
+    txn.holding_id ? scope.holdings.findOne({ _id: txn.holding_id }) : Promise.resolve(null),
+    txn.tag_ids.length ? scope.tags.find({ _id: { $in: txn.tag_ids } }).toArray() : Promise.resolve([]),
   ]);
   const root =
     category?.parent_id ? await scope.categories.findOne({ _id: category.parent_id }) : null;
@@ -39,8 +43,17 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     date: txn.date.toISOString().slice(0, 10),
     accountId: txn.account_id?.toHexString() ?? "",
     accountName: account?.name,
+    // Read-only context a locked row still needs to show — the mobile edit
+    // screen renders these instead of an editable account/person field for
+    // transfer/loan rows, where they'd otherwise be invisible entirely.
+    toAccountName: toAccount?.name,
+    personName: person?.name,
+    holdingName: holding?.name,
+    quantityDelta: txn.quantity_delta,
     categoryId: txn.category_id?.toHexString() ?? "",
     categoryName: category ? (root ? `${root.name} › ${category.name}` : category.name) : undefined,
+    tagIds: txn.tag_ids.map((id) => id.toHexString()),
+    tagNames: tags.map((t) => t.name),
     rawText: txn.raw_text ?? "",
     source: txn.source,
     // Same lock as the web edit form (lib/ledger.ts refuses these edits for
@@ -101,6 +114,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Update failed." }, { status: 400 });
+  }
+
+  // Tags aren't a "financial" — always editable regardless of
+  // financialsLocked, and applied as its own $set outside updateTransaction
+  // since it has no balance/ledger effect for that function to guard.
+  if (Array.isArray(body.tagIds)) {
+    const tagIds = body.tagIds.filter((id: unknown) => ObjectId.isValid(String(id))).map((id: unknown) => new ObjectId(String(id)));
+    await scope.transactions.updateOne({ _id: txn._id }, { $set: { tag_ids: tagIds } });
   }
 
   if (categoryId) await learnItemAlias(scope, item, categoryId);
