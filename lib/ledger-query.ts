@@ -10,6 +10,7 @@ export interface LedgerQueryOptions {
   to?: string; // YYYY-MM-DD, inclusive
   cursor?: string;
   limit?: number;
+  q?: string; // free-text search — matches item/note directly, category/person/account by resolved name
 }
 
 // "Spending" for History's total — just expenses. Loans move money out of an
@@ -31,6 +32,32 @@ function decodeCursor(cursor: string): { date: Date; id: ObjectId } | null {
   return { date, id: new ObjectId(idStr) };
 }
 
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Category/person/account matches are by NAME, not stored on the transaction
+// itself, so they need a first-pass id lookup before the transaction can be
+// filtered — hence the extra queries and the $or across id lists below.
+async function searchFilter(scope: UserScope, q: string): Promise<Record<string, unknown>> {
+  const pattern = { $regex: escapeRegex(q), $options: "i" };
+  const [categories, people, accounts] = await Promise.all([
+    scope.categories.find({ name: pattern }).toArray(),
+    scope.people.find({ name: pattern }).toArray(),
+    scope.accounts.find({ name: pattern }).toArray(),
+  ]);
+
+  const or: Record<string, unknown>[] = [{ item: pattern }, { note: pattern }];
+  if (categories.length) or.push({ category_id: { $in: categories.map((c) => c._id) } });
+  if (people.length) or.push({ person_id: { $in: people.map((p) => p._id) } });
+  if (accounts.length) {
+    const accountIds = accounts.map((a) => a._id);
+    or.push({ account_id: { $in: accountIds } }, { to_account_id: { $in: accountIds } });
+  }
+
+  return { $or: or };
+}
+
 function dateRangeFilter(from?: string, to?: string): Record<string, unknown> | null {
   if (!from && !to) return null;
   const range: Record<string, Date> = {};
@@ -48,6 +75,8 @@ export async function fetchLedgerPage(
 
   const dateFilter = dateRangeFilter(opts.from, opts.to);
   if (dateFilter) and.push(dateFilter);
+
+  if (opts.q) and.push(await searchFilter(scope, opts.q));
 
   if (opts.cursor) {
     const decoded = decodeCursor(opts.cursor);

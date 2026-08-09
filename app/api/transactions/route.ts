@@ -15,6 +15,7 @@ export async function GET(req: Request) {
   const cursor = searchParams.get("cursor") ?? undefined;
   const from = searchParams.get("from") ?? undefined;
   const to = searchParams.get("to") ?? undefined;
+  const q = searchParams.get("q") ?? undefined;
   const nowParam = searchParams.get("now");
   const now = nowParam ? new Date(nowParam) : new Date();
 
@@ -24,7 +25,7 @@ export async function GET(req: Request) {
     scope.categories.find({}).toArray(),
     scope.people.find({}).toArray(),
     scope.holdings.find({}).toArray(),
-    fetchLedgerPage(scope, { from, to, cursor, limit: 30 }),
+    fetchLedgerPage(scope, { from, to, cursor, limit: 30, q }),
   ]);
 
   const groups = groupTransactionsByDay(transactions, accounts, categories, people, holdings, now);
