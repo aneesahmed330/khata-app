@@ -238,6 +238,52 @@ async function fetchLoanTimeline(scope: UserScope, sixMonthsAgo: Date, monthKeys
   }));
 }
 
+const TAG_BREAKDOWN_MAX = 8;
+
+/** Spend grouped by tag for the CURRENT range (unlike categoryTrend/
+ *  incomeVsExpense/loanTimeline, which are always the fixed last 6 months) —
+ *  tags are a "what did this period look like" lens, same as the donut on
+ *  /api/insights, not a trend line. A transaction with two tags counts
+ *  toward both tags' totals (an $unwind before $group), same convention
+ *  most tag-based reporting uses — it's not double-spending, it's the same
+ *  rupee correctly showing up under every label it was tagged with. */
+async function fetchTagBreakdown(scope: UserScope, from: Date, to: Date) {
+  const rows = await scope.transactions
+    .aggregate<{ _id: ObjectId; total: number; count: number }>([
+      {
+        $match: {
+          type: "expense",
+          date: { $gte: from, $lt: to },
+          deleted_at: { $exists: false },
+          tag_ids: { $exists: true, $ne: [] },
+        },
+      },
+      { $unwind: "$tag_ids" },
+      { $group: { _id: "$tag_ids", total: { $sum: "$amount" }, count: { $sum: 1 } } },
+      { $sort: { total: -1 } },
+    ])
+    .toArray();
+
+  if (rows.length === 0) return [];
+
+  const tags = await scope.tags.find({ _id: { $in: rows.map((r) => r._id) } }).toArray();
+  const nameById = new Map(tags.map((t) => [t._id.toHexString(), t.name] as const));
+
+  const top = rows.slice(0, TAG_BREAKDOWN_MAX);
+  const otherTotal = rows.slice(TAG_BREAKDOWN_MAX).reduce((sum, r) => sum + r.total, 0);
+  const otherCount = rows.slice(TAG_BREAKDOWN_MAX).reduce((sum, r) => sum + r.count, 0);
+
+  const breakdown = top.map((r) => ({
+    name: nameById.get(r._id.toHexString()) ?? "Unknown",
+    total: r.total,
+    count: r.count,
+  }));
+  if (otherTotal > 0) {
+    breakdown.push({ name: "Other tags", total: otherTotal, count: otherCount });
+  }
+  return breakdown;
+}
+
 export async function GET(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
@@ -257,12 +303,13 @@ export async function GET(request: Request) {
   const monthKeys = months.map(monthKey);
   const sixMonthsAgo = months[0]!;
 
-  const [netWorthTrend, categoryTrend, incomeVsExpense, loanTimeline, holdings] = await Promise.all([
+  const [netWorthTrend, categoryTrend, incomeVsExpense, loanTimeline, holdings, tagBreakdown] = await Promise.all([
     fetchNetWorthTrend(scope, from, to, stepDays),
     fetchCategoryTrend(scope, sixMonthsAgo, monthKeys),
     fetchIncomeVsExpense(scope, sixMonthsAgo, monthKeys),
     fetchLoanTimeline(scope, sixMonthsAgo, monthKeys),
     scope.holdings.find({ status: "open" }).toArray(),
+    fetchTagBreakdown(scope, from, to),
   ]);
 
   const portfolio = holdings.map((h) => ({
@@ -277,5 +324,6 @@ export async function GET(request: Request) {
     incomeVsExpense,
     loanTimeline,
     portfolio,
+    tagBreakdown,
   });
 }
