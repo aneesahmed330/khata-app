@@ -20,14 +20,15 @@ export async function GET(req: Request) {
   const now = nowParam ? new Date(nowParam) : new Date();
 
   const scope = await forUser(session.userId);
-  const [accounts, categories, people, holdings, { transactions, nextCursor }] = await Promise.all([
+  const [accounts, categories, people, holdings, tags, { transactions, nextCursor }] = await Promise.all([
     scope.accounts.find({}).toArray(),
     scope.categories.find({}).toArray(),
     scope.people.find({}).toArray(),
     scope.holdings.find({}).toArray(),
+    scope.tags.find({}).toArray(),
     fetchLedgerPage(scope, { from, to, cursor, limit: 30, q }),
   ]);
 
-  const groups = groupTransactionsByDay(transactions, accounts, categories, people, holdings, now);
+  const groups = groupTransactionsByDay(transactions, accounts, categories, people, holdings, now, tags);
   return NextResponse.json({ groups, nextCursor });
 }

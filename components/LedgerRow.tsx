@@ -64,6 +64,7 @@ export interface LedgerRowData {
   personName?: string;
   holdingName?: string;
   note?: string;
+  tagNames?: string[];
 }
 
 const LOAN_TYPES: ReadonlySet<TxnType> = new Set<TxnType>([
