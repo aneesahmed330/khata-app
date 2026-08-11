@@ -16,6 +16,9 @@ export async function GET(req: Request) {
   const from = searchParams.get("from") ?? undefined;
   const to = searchParams.get("to") ?? undefined;
   const q = searchParams.get("q") ?? undefined;
+  const typesParam = searchParams.get("types");
+  const types = typesParam ? typesParam.split(",").filter(Boolean) : undefined;
+  const sortDir = searchParams.get("sort") === "asc" ? "asc" : "desc";
   const nowParam = searchParams.get("now");
   const now = nowParam ? new Date(nowParam) : new Date();
 
@@ -26,7 +29,7 @@ export async function GET(req: Request) {
     scope.people.find({}).toArray(),
     scope.holdings.find({}).toArray(),
     scope.tags.find({}).toArray(),
-    fetchLedgerPage(scope, { from, to, cursor, limit: 30, q }),
+    fetchLedgerPage(scope, { from, to, cursor, limit: 30, q, types, sortDir }),
   ]);
 
   const groups = groupTransactionsByDay(transactions, accounts, categories, people, holdings, now, tags);

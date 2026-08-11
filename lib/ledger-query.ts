@@ -11,6 +11,8 @@ export interface LedgerQueryOptions {
   cursor?: string;
   limit?: number;
   q?: string; // free-text search — matches item/note directly, category/person/account by resolved name
+  types?: string[]; // TxnType values to include — omitted/empty means all types
+  sortDir?: "asc" | "desc"; // chronological direction; defaults to "desc" (newest first)
 }
 
 // "Spending" for History's total — just expenses. Loans move money out of an
@@ -72,17 +74,21 @@ export async function fetchLedgerPage(
 ): Promise<{ transactions: TransactionDoc[]; nextCursor: string | null }> {
   const limit = Math.min(opts.limit ?? 30, 100);
   const and: Record<string, unknown>[] = [{ deleted_at: { $exists: false } }];
+  const dir = opts.sortDir === "asc" ? 1 : -1;
 
   const dateFilter = dateRangeFilter(opts.from, opts.to);
   if (dateFilter) and.push(dateFilter);
+
+  if (opts.types?.length) and.push({ type: { $in: opts.types } });
 
   if (opts.q) and.push(await searchFilter(scope, opts.q));
 
   if (opts.cursor) {
     const decoded = decodeCursor(opts.cursor);
     if (decoded) {
+      const cmp = dir === 1 ? "$gt" : "$lt";
       and.push({
-        $or: [{ date: { $lt: decoded.date } }, { date: decoded.date, _id: { $lt: decoded.id } }],
+        $or: [{ date: { [cmp]: decoded.date } }, { date: decoded.date, _id: { [cmp]: decoded.id } }],
       });
     }
   }
@@ -90,7 +96,7 @@ export async function fetchLedgerPage(
   const filter = and.length === 1 ? and[0]! : { $and: and };
 
   const page = await scope.transactions
-    .find(filter as never, { sort: { date: -1, _id: -1 }, limit: limit + 1 })
+    .find(filter as never, { sort: { date: dir, _id: dir }, limit: limit + 1 })
     .toArray();
 
   const hasMore = page.length > limit;
