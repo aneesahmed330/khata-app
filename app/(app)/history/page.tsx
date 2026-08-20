@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { forUser } from "@/lib/scope";
-import { HistoryFilter } from "@/components/HistoryFilter";
+import { HistoryControls } from "@/components/HistoryControls";
 import { HistoryList } from "@/components/HistoryList";
 import { EmptyNote } from "@/components/EmptyState";
 import { TopBar } from "@/components/TopBar";
@@ -23,13 +23,17 @@ function rangeLabel(from?: string, to?: string): string {
 export default async function HistoryPage({
   searchParams,
 }: {
-  searchParams: { from?: string; to?: string };
+  searchParams: { from?: string; to?: string; q?: string; types?: string; accounts?: string; sort?: string };
 }) {
   const session = await getSession();
   if (!session) return null;
 
   const from = searchParams.from || undefined;
   const to = searchParams.to || undefined;
+  const q = searchParams.q || undefined;
+  const types = searchParams.types ? searchParams.types.split(",").filter(Boolean) : undefined;
+  const accountIds = searchParams.accounts ? searchParams.accounts.split(",").filter(Boolean) : undefined;
+  const sortDir = searchParams.sort === "asc" ? "asc" : "desc";
 
   const scope = await forUser(session.userId);
   const [accounts, categories, people, holdings, page, totals] = await Promise.all([
@@ -37,11 +41,14 @@ export default async function HistoryPage({
     scope.categories.find({}).toArray(),
     scope.people.find({}).toArray(),
     scope.holdings.find({}).toArray(),
-    fetchLedgerPage(scope, { from, to, limit: 30 }),
+    fetchLedgerPage(scope, { from, to, limit: 30, q, types, accountIds, sortDir }),
     fetchLedgerTotals(scope, { from, to }),
   ]);
 
   const groups = groupTransactionsByDay(page.transactions, accounts, categories, people, holdings);
+  const accountOptions = accounts
+    .filter((a) => !a.archived)
+    .map((a) => ({ id: a._id.toHexString(), name: a.name }));
 
   return (
     <>
@@ -50,7 +57,14 @@ export default async function HistoryPage({
         eyebrow={`${totals.count} ${totals.count === 1 ? "entry" : "entries"} · ${rangeLabel(from, to)}`}
       />
       <main className="mx-auto max-w-md px-4 pb-6 pt-3">
-        <HistoryFilter range={{ from, to }} />
+        <HistoryControls
+          range={{ from, to }}
+          q={q}
+          types={searchParams.types || undefined}
+          accountIds={searchParams.accounts || undefined}
+          sort={sortDir}
+          accounts={accountOptions}
+        />
 
         {groups.length === 0 ? (
           <div className="mt-4">
@@ -70,11 +84,15 @@ export default async function HistoryPage({
             </div>
 
             <HistoryList
-              key={`${from ?? ""}_${to ?? ""}`}
+              key={`${from ?? ""}_${to ?? ""}_${q ?? ""}_${searchParams.types ?? ""}_${searchParams.accounts ?? ""}_${sortDir}`}
               initialGroups={groups}
               initialNextCursor={page.nextCursor}
               from={from}
               to={to}
+              q={q}
+              types={searchParams.types || undefined}
+              accountIds={searchParams.accounts || undefined}
+              sort={sortDir}
             />
           </>
         )}

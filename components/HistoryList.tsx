@@ -28,11 +28,19 @@ export function HistoryList({
   initialNextCursor,
   from,
   to,
+  q,
+  types,
+  accountIds,
+  sort,
 }: {
   initialGroups: DayGroup[];
   initialNextCursor: string | null;
   from?: string;
   to?: string;
+  q?: string;
+  types?: string;
+  accountIds?: string;
+  sort?: "asc" | "desc";
 }) {
   const [groups, setGroups] = useState(initialGroups);
   const [nextCursor, setNextCursor] = useState(initialNextCursor);
@@ -49,6 +57,10 @@ export function HistoryList({
       const params = new URLSearchParams({ cursor: nextCursor, now: nowRef.current });
       if (from) params.set("from", from);
       if (to) params.set("to", to);
+      if (q) params.set("q", q);
+      if (types) params.set("types", types);
+      if (accountIds) params.set("accounts", accountIds);
+      if (sort === "asc") params.set("sort", "asc");
       const res = await fetch(`/api/transactions?${params.toString()}`);
       if (!res.ok) return;
       const data = (await res.json()) as { groups: DayGroup[]; nextCursor: string | null };
@@ -57,7 +69,7 @@ export function HistoryList({
     } finally {
       setLoading(false);
     }
-  }, [nextCursor, loading, from, to]);
+  }, [nextCursor, loading, from, to, q, types, accountIds, sort]);
 
   useEffect(() => {
     const el = sentinelRef.current;
