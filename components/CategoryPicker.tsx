@@ -136,6 +136,8 @@ export function CategoryPicker({
               />
             ))
           )
+        ) : roots.length === 0 ? (
+          <p className="t-label px-3 py-6 text-center text-fg-faint">No categories yet.</p>
         ) : (
           roots.map((root) => {
             const kids = childrenByRoot.get(root.name) ?? [];

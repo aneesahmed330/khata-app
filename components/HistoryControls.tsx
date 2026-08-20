@@ -8,6 +8,9 @@ import {
   Search,
   SlidersHorizontal,
   WalletCards,
+  Landmark,
+  Wallet,
+  Smartphone,
   Check,
   ArrowDownNarrowWide,
   ArrowUpNarrowWide,
@@ -23,7 +26,17 @@ export interface HistoryRange {
 export interface AccountOption {
   id: string;
   name: string;
+  type?: string;
 }
+
+// Same type→icon vocabulary as KhataMobile's HistoryScreen.tsx account
+// filter sheet — a bank/cash/wallet account reads the same way on both
+// platforms' filter lists.
+const ACCOUNT_ICONS: Record<string, typeof Landmark> = {
+  bank: Landmark,
+  cash: Wallet,
+  wallet: Smartphone,
+};
 
 type SortDir = "asc" | "desc";
 
@@ -330,9 +343,13 @@ export function HistoryControls({
               </button>
               {accounts.map((a) => {
                 const checked = selectedAccountIds.has(a.id);
+                const Icon = ACCOUNT_ICONS[a.type ?? ""] ?? Wallet;
                 return (
                   <button key={a.id} type="button" onClick={() => toggleAccount(a.id)} className={MENU_ROW_CLASS}>
-                    <span className="t-label truncate text-fg">{a.name}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <Icon size={14} strokeWidth={1.75} className="shrink-0 text-fg-faint" aria-hidden />
+                      <span className="t-label truncate text-fg">{a.name}</span>
+                    </span>
                     {checked ? <Check size={14} strokeWidth={2.5} className="shrink-0 text-accent-text" /> : null}
                   </button>
                 );

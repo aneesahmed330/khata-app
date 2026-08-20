@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, LineChart } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { forUser } from "@/lib/scope";
 import { TopBar } from "@/components/TopBar";
-import { EmptyNote } from "@/components/EmptyState";
+import { EmptyState } from "@/components/EmptyState";
 import { StatPair } from "@/components/StatTile";
 import { HoldingList, type HoldingSummary } from "@/components/HoldingList";
 import { formatPKR } from "@/lib/format";
@@ -66,7 +66,12 @@ export default async function InvestmentsPage() {
       />
       <main className="mx-auto max-w-md px-4 pt-4">
         {holdings.length === 0 ? (
-          <EmptyNote>No investments yet. Tap + below to add one.</EmptyNote>
+          <EmptyState
+            Icon={LineChart}
+            message="No investments yet. Track stocks, gold, or anything else you hold."
+            actionLabel="Add an investment"
+            actionHref="/investments/new"
+          />
         ) : (
           <>
             <div className="mb-4">

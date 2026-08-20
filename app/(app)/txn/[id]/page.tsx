@@ -17,9 +17,13 @@ export default async function TransactionPage({ params }: { params: { id: string
   const txn = await scope.transactions.findOne({ _id: new ObjectId(params.id) });
   if (!txn || txn.deleted_at) notFound();
 
-  const [accounts, categories] = await Promise.all([
+  const [accounts, categories, person, holding, toAccount, tags] = await Promise.all([
     scope.accounts.find({ archived: { $ne: true } }).toArray(),
     scope.categories.find({}).toArray(),
+    txn.person_id ? scope.people.findOne({ _id: txn.person_id }) : Promise.resolve(null),
+    txn.holding_id ? scope.holdings.findOne({ _id: txn.holding_id }) : Promise.resolve(null),
+    txn.to_account_id ? scope.accounts.findOne({ _id: txn.to_account_id }) : Promise.resolve(null),
+    txn.tag_ids.length ? scope.tags.find({ _id: { $in: txn.tag_ids } }).toArray() : Promise.resolve([]),
   ]);
 
   const roots = categories.filter((c) => c.parent_id === null);
@@ -29,6 +33,20 @@ export default async function TransactionPage({ params }: { params: { id: string
       .filter((c) => c.parent_id?.equals(root._id))
       .map((child) => ({ id: child._id.toHexString(), label: child.name, depth: 1 })),
   ]);
+  const category = txn.category_id ? categories.find((c) => c._id.equals(txn.category_id!)) : undefined;
+  const categoryRoot = category?.parent_id ? categories.find((c) => c._id.equals(category.parent_id!)) : undefined;
+
+  // Same "most identifying field" priority as KhataMobile's detailTitle() —
+  // a person or holding name beats the generic type label, "Transfer" beats
+  // an implied category, and only a plain expense/income falls back to its
+  // item/category the way the old static "Entry" header effectively always did.
+  const title =
+    person?.name ||
+    holding?.name ||
+    (txn.type === "transfer" ? "Transfer" : undefined) ||
+    txn.item ||
+    (category ? (categoryRoot ? `${categoryRoot.name} › ${category.name}` : category.name) : undefined) ||
+    "Entry";
 
   const data: TxnEditData = {
     id: txn._id.toHexString(),
@@ -47,6 +65,11 @@ export default async function TransactionPage({ params }: { params: { id: string
     // have to be reworked (lib/ledger.ts). The form disables them rather
     // than letting the user submit something that will be rejected.
     financialsLocked: Boolean(txn.loan_id || txn.to_account_id || txn.holding_id),
+    personName: person?.name,
+    holdingName: holding?.name,
+    toAccountName: toAccount?.name,
+    quantityDelta: txn.quantity_delta,
+    tags: tags.map((t) => ({ id: t._id.toHexString(), name: t.name })),
   };
 
   return (
@@ -63,7 +86,7 @@ export default async function TransactionPage({ params }: { params: { id: string
           >
             <ArrowLeft size={19} strokeWidth={1.75} aria-hidden />
           </Link>
-          <h1 className="t-title truncate">Entry</h1>
+          <h1 className="t-title truncate">{title}</h1>
         </div>
       </header>
 

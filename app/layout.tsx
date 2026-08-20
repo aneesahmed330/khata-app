@@ -55,6 +55,11 @@ export const viewport: Viewport = {
 // surface. No stored choice => no data-theme attribute => the
 // prefers-color-scheme block in globals.css decides.
 const THEME_INIT = `try{var t=localStorage.getItem("khata-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`;
+// Same pre-paint treatment for the accent-color and text-size pickers
+// (lib/use-accent.ts, lib/use-text-size.ts) — a stored non-default choice
+// should never flash the marigold/medium default on first paint either.
+const ACCENT_INIT = `try{var a=localStorage.getItem("khata-accent");if(a&&a!=="marigold")document.documentElement.dataset.accent=a}catch(e){}`;
+const TEXT_SIZE_INIT = `try{var s=localStorage.getItem("khata-text-size");if(s&&s!=="medium")document.documentElement.dataset.textSize=s}catch(e){}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -65,6 +70,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+        <script dangerouslySetInnerHTML={{ __html: ACCENT_INIT }} />
+        <script dangerouslySetInnerHTML={{ __html: TEXT_SIZE_INIT }} />
       </head>
       <body className="min-h-screen antialiased">{children}</body>
     </html>

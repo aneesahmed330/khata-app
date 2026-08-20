@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useFormState, useFormStatus } from "react-dom";
 import Link from "next/link";
 import {
   ArrowDown,
@@ -15,9 +16,10 @@ import {
   Trash2,
   Check,
   X,
+  Loader2,
 } from "lucide-react";
 import { Amount } from "./Amount";
-import { deleteTransactionAction } from "@/actions/transactions";
+import { deleteTransactionAction, type TxnActionResult } from "@/actions/transactions";
 import type { TxnType } from "@/lib/types";
 
 // DESIGN.md §3's glyph vocabulary, as real icons rather than Unicode
@@ -90,6 +92,10 @@ export function LedgerRow({
   redirectTo: "/" | "/history";
 }) {
   const [confirming, setConfirming] = useState(false);
+  const [deleteState, deleteFormAction] = useFormState<TxnActionResult, FormData>(
+    deleteTransactionAction,
+    {},
+  );
   const Icon = ICON[row.type];
   const hasItem = Boolean(row.item);
   const isLoan = LOAN_TYPES.has(row.type);
@@ -130,6 +136,18 @@ export function LedgerRow({
           {row.note ? (
             <div className="truncate text-[11px] italic leading-tight text-fg-faint">{row.note}</div>
           ) : null}
+          {row.tagNames && row.tagNames.length > 0 ? (
+            <div className="mt-0.5 flex flex-wrap gap-1">
+              {row.tagNames.map((name) => (
+                <span
+                  key={name}
+                  className="rounded-full bg-surface-sunk px-1.5 py-0.5 text-[10px] leading-none text-fg-faint"
+                >
+                  #{name}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         {/* Fixed right column — the whole point of a ledger (§5) */}
@@ -141,26 +159,27 @@ export function LedgerRow({
           phones. A tap arms a two-icon confirm in place, so one accidental tap
           still can't delete anything. */}
       {confirming ? (
-        <div className="flex shrink-0 items-center gap-1">
-          <form action={deleteTransactionAction}>
-            <input type="hidden" name="id" value={row.id} />
-            <input type="hidden" name="redirectTo" value={redirectTo} />
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <div className="flex items-center gap-1">
+            <form action={deleteFormAction}>
+              <input type="hidden" name="id" value={row.id} />
+              <input type="hidden" name="redirectTo" value={redirectTo} />
+              <DeleteConfirmSubmit />
+            </form>
             <button
-              type="submit"
-              aria-label="Confirm delete"
-              className="flex size-7 items-center justify-center rounded-full bg-out/15 text-out transition-colors hover:bg-out/25"
+              type="button"
+              aria-label="Cancel delete"
+              onClick={() => setConfirming(false)}
+              className="flex size-7 items-center justify-center rounded-full text-fg-faint transition-colors hover:text-fg-muted"
             >
-              <Check size={14} strokeWidth={2.5} aria-hidden />
+              <X size={14} strokeWidth={2} aria-hidden />
             </button>
-          </form>
-          <button
-            type="button"
-            aria-label="Cancel delete"
-            onClick={() => setConfirming(false)}
-            className="flex size-7 items-center justify-center rounded-full text-fg-faint transition-colors hover:text-fg-muted"
-          >
-            <X size={14} strokeWidth={2} aria-hidden />
-          </button>
+          </div>
+          {/* Only ever renders on failure — success redirects away before this
+              component gets a chance to show a message. */}
+          {deleteState.error ? (
+            <p className="t-label max-w-40 text-right text-out">{deleteState.error}</p>
+          ) : null}
         </div>
       ) : (
         <button
@@ -173,5 +192,23 @@ export function LedgerRow({
         </button>
       )}
     </div>
+  );
+}
+
+function DeleteConfirmSubmit() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-label="Confirm delete"
+      className="flex size-7 items-center justify-center rounded-full bg-out/15 text-out transition-colors hover:bg-out/25 disabled:opacity-50"
+    >
+      {pending ? (
+        <Loader2 size={14} strokeWidth={2} className="animate-spin" aria-hidden />
+      ) : (
+        <Check size={14} strokeWidth={2.5} aria-hidden />
+      )}
+    </button>
   );
 }

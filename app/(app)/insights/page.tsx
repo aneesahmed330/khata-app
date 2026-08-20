@@ -1,3 +1,4 @@
+import { TrendingUp, TrendingDown } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { forUser } from "@/lib/scope";
 import { formatPKRWhole } from "@/lib/format";
@@ -111,6 +112,14 @@ export default async function InsightsPage({
   const spendDelta = deltaPct(totals.expense, prevTotals.expense);
   const incomeDelta = deltaPct(totals.income, prevTotals.income);
 
+  // One-line takeaway under the KPI tiles — suppressed when there's no prior
+  // period to compare against, or the change is small enough to be noise.
+  const spendDeltaRounded = spendDelta !== null ? Math.round(spendDelta) : null;
+  const insight =
+    spendDeltaRounded !== null && Math.abs(spendDeltaRounded) >= 3
+      ? { pct: spendDeltaRounded, topCategory: rows[0]?.name }
+      : null;
+
   const daysWithSpend = daily.filter((d) => d.value > 0);
   const dailyAvg = daily.length > 0 ? totals.expense / daily.length : 0;
   const busiest = daily.reduce<(typeof daily)[number] | null>(
@@ -174,6 +183,23 @@ export default async function InsightsPage({
                   tone={net < 0 ? "out" : "in"}
                 />
               </KpiBand>
+              {insight ? (
+                <div
+                  className={`mt-2 flex items-start gap-2 rounded-chip p-3 ${
+                    insight.pct > 0 ? "bg-out/10" : "bg-in/10"
+                  }`}
+                >
+                  {insight.pct > 0 ? (
+                    <TrendingUp size={15} strokeWidth={2} className="mt-0.5 shrink-0 text-out" aria-hidden />
+                  ) : (
+                    <TrendingDown size={15} strokeWidth={2} className="mt-0.5 shrink-0 text-in" aria-hidden />
+                  )}
+                  <p className="t-label text-fg-muted">
+                    You spent {Math.abs(insight.pct)}% {insight.pct > 0 ? "more" : "less"} than last period
+                    {insight.topCategory ? ` — mostly on ${insight.topCategory}.` : "."}
+                  </p>
+                </div>
+              ) : null}
               <p className="t-label mt-2 px-1 text-fg-faint">vs {range.comparisonLabel}</p>
             </section>
 

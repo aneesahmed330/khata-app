@@ -1,7 +1,8 @@
+import { HandCoins } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { forUser } from "@/lib/scope";
 import { TopBar } from "@/components/TopBar";
-import { EmptyNote } from "@/components/EmptyState";
+import { EmptyState } from "@/components/EmptyState";
 import { SectionHead } from "@/components/SectionHead";
 import { KpiBand, KpiTile } from "@/components/Kpi";
 import { LoanList, type LoanSummary } from "@/components/LoanList";
@@ -54,7 +55,12 @@ export default async function LoansPage() {
       />
       <main className="mx-auto max-w-md px-4 pb-6 pt-4">
         {allLoans.length === 0 ? (
-          <EmptyNote>No loans yet — lend or borrow, and it&apos;ll show up here.</EmptyNote>
+          <EmptyState
+            Icon={HandCoins}
+            message="No loans yet. Track money you've lent or borrowed."
+            actionLabel="Add a loan"
+            actionHref="/add"
+          />
         ) : (
           <>
             <SectionHead

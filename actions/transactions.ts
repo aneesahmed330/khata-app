@@ -90,6 +90,16 @@ export async function updateTransactionAction(
     return { error: err instanceof Error ? err.message : "Update failed." };
   }
 
+  // Tags aren't a "financial" — always editable regardless of
+  // financialsLocked, applied as its own $set outside updateTransaction
+  // since it has no balance/ledger effect for that function to guard.
+  // Mirrors app/api/transactions/[id]/route.ts's POST handler exactly.
+  const tagIds = String(formData.get("tag_ids") ?? "")
+    .split(",")
+    .filter((id) => ObjectId.isValid(id))
+    .map((id) => new ObjectId(id));
+  await scope.transactions.updateOne({ _id: txn._id }, { $set: { tag_ids: tagIds } });
+
   // A hand-fixed category is the strongest signal there is — the user is
   // telling us the parse was wrong. Without this the same item re-parsed to
   // the same wrong category forever (plan.md §2.2's correction loop, which
@@ -106,18 +116,25 @@ export async function updateTransactionAction(
 // as-is (an unvalidated redirect target from form data is an open-redirect risk).
 const REDIRECT_ALLOWLIST = new Set(["/", "/history"]);
 
-export async function deleteTransactionAction(formData: FormData): Promise<void> {
+export async function deleteTransactionAction(
+  _prev: TxnActionResult | undefined,
+  formData: FormData,
+): Promise<TxnActionResult> {
   const session = await getSession();
-  if (!session) redirect("/login");
+  if (!session) return { error: "Session expired. Please log in again." };
 
   const id = String(formData.get("id") ?? "");
   const requested = String(formData.get("redirectTo") ?? "");
   const redirectTo = REDIRECT_ALLOWLIST.has(requested) ? requested : "/history";
-  if (!ObjectId.isValid(id)) redirect(redirectTo);
+  if (!ObjectId.isValid(id)) return { error: "Invalid entry." };
 
   const scope = await forUser(session.userId);
-  // Soft-delete + full balance/loan reversal (plan.md §5 — never hard-delete).
-  await reverseTransaction(scope, new ObjectId(id));
+  try {
+    // Soft-delete + full balance/loan reversal (plan.md §5 — never hard-delete).
+    await reverseTransaction(scope, new ObjectId(id));
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't delete that." };
+  }
 
   revalidateLedger();
   redirect(redirectTo);

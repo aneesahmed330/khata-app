@@ -9,6 +9,7 @@ import {
   deleteTransactionAction,
   type TxnActionResult,
 } from "@/actions/transactions";
+import { TagPicker, type TagOption } from "@/components/TagPicker";
 import type { TxnType, TxnSource } from "@/lib/types";
 
 export interface TxnEditData {
@@ -23,7 +24,27 @@ export interface TxnEditData {
   rawText: string;
   source: TxnSource;
   financialsLocked: boolean;
+  /** Counterparty/context fields the edit form can't change but a loan,
+   *  investment, or transfer row still needs to show — otherwise a locked
+   *  row's "who"/"which holding"/"to where" is invisible on this page. */
+  personName?: string;
+  holdingName?: string;
+  toAccountName?: string;
+  quantityDelta?: number;
+  tags: TagOption[];
 }
+
+const LOAN_TYPES: ReadonlySet<TxnType> = new Set<TxnType>([
+  "loan_given",
+  "loan_taken",
+  "repayment_in",
+  "repayment_out",
+]);
+const INVESTMENT_TYPES: ReadonlySet<TxnType> = new Set<TxnType>([
+  "investment_buy",
+  "investment_sell",
+  "dividend",
+]);
 
 const TYPE_LABEL: Record<TxnType, string> = {
   expense: "Expense",
@@ -61,7 +82,12 @@ export function TxnEditForm({
     updateTransactionAction,
     {},
   );
+  const [deleteState, deleteFormAction] = useFormState<TxnActionResult, FormData>(
+    deleteTransactionAction,
+    {},
+  );
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [tags, setTags] = useState<TagOption[]>(data.tags);
 
   return (
     <div className="flex flex-col gap-6">
@@ -146,6 +172,26 @@ export function TxnEditForm({
           ) : null}
         </Field>
 
+        {/* Read-only context a locked row still needs to show — the "who"
+            for a loan, "which holding" for an investment, "to where" for a
+            transfer. None of these are editable here (same reason the
+            Account field above is locked), so they're plain text, not a
+            disabled control pretending to be one. */}
+        {data.type === "transfer" ? (
+          <ReadOnlyField label="To account" value={data.toAccountName ?? "Not specified"} />
+        ) : null}
+        {LOAN_TYPES.has(data.type) ? (
+          <ReadOnlyField label="Person" value={data.personName ?? "Unknown"} />
+        ) : null}
+        {INVESTMENT_TYPES.has(data.type) ? (
+          <>
+            <ReadOnlyField label="Holding" value={data.holdingName ?? "Unknown"} />
+            {data.quantityDelta ? (
+              <ReadOnlyField label="Quantity" value={String(data.quantityDelta)} />
+            ) : null}
+          </>
+        ) : null}
+
         {data.financialsLocked ? (
           <p className="t-label flex items-start gap-2 text-fg-muted">
             <Lock size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" aria-hidden />
@@ -177,6 +223,14 @@ export function TxnEditForm({
           />
         </Field>
 
+        {/* Tags aren't a "financial" — editable even when the rest of the
+            form is locked (see actions/transactions.ts's updateTransactionAction). */}
+        <div>
+          <span className="t-micro mb-1.5 block text-fg-faint">Tags</span>
+          <TagPicker selected={tags} onChange={setTags} initialTags={data.tags} />
+          <input type="hidden" name="tag_ids" value={tags.map((t) => t.id).join(",")} />
+        </div>
+
         {state.error ? (
           <div className="flex items-start gap-2">
             <CircleAlert size={15} strokeWidth={1.75} className="mt-0.5 shrink-0 text-out" aria-hidden />
@@ -201,7 +255,7 @@ export function TxnEditForm({
           actually confirmed. */}
       <div className="mt-6 flex justify-center">
         {confirmingDelete ? (
-          <form action={deleteTransactionAction} className="flex w-full flex-col gap-3">
+          <form action={deleteFormAction} className="flex w-full flex-col gap-3">
             <p className="t-label text-center text-fg-muted">
               Deleting will also reverse the account balance. The entry stays in
               the record — it isn&apos;t permanently erased.
@@ -217,6 +271,12 @@ export function TxnEditForm({
                 Keep it
               </button>
             </div>
+            {deleteState.error ? (
+              <div className="flex items-start justify-center gap-2">
+                <CircleAlert size={15} strokeWidth={1.75} className="mt-0.5 shrink-0 text-out" aria-hidden />
+                <p className="t-label text-out">{deleteState.error}</p>
+              </div>
+            ) : null}
           </form>
         ) : (
           <button
@@ -248,6 +308,17 @@ function Field({
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className="t-micro mb-1.5 block text-fg-faint">{label}</span>
+      <p className="t-body w-full rounded-chip border border-rule bg-surface-sunk px-4 py-3.5 text-fg-muted">
+        {value}
+      </p>
     </div>
   );
 }

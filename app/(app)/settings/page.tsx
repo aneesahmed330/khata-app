@@ -4,9 +4,11 @@ import { forUser } from "@/lib/scope";
 import { getDb } from "@/lib/db";
 import { logoutAction } from "@/actions/auth";
 import { TopBar } from "@/components/TopBar";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { ThemeToggle, ThemeStateLabel } from "@/components/ThemeToggle";
 import { HideBalancesToggle } from "@/components/HideBalancesToggle";
 import { NetWorthPrefsToggle } from "@/components/NetWorthPrefsToggle";
+import { AccentPicker } from "@/components/AccentPicker";
+import { TextSizePicker } from "@/components/TextSizePicker";
 import { Sensitive } from "@/components/Sensitive";
 import { formatPKRWhole } from "@/lib/format";
 import type { UserDoc } from "@/lib/types";
@@ -68,10 +70,14 @@ export default async function SettingsPage() {
               <Palette size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-fg-faint" aria-hidden />
               <div className="min-w-0 flex-1">
                 <div className="t-body">Theme</div>
-                <div className="t-label text-fg-muted">Ink or Paper</div>
+                <div className="t-label text-fg-muted">
+                  <ThemeStateLabel />
+                </div>
               </div>
               <ThemeToggle />
             </div>
+            <AccentPicker />
+            <TextSizePicker />
             <HideBalancesToggle />
             <NetWorthPrefsToggle
               loansInitial={user?.count_loans_in_net_worth ?? true}

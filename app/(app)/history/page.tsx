@@ -2,7 +2,8 @@ import { getSession } from "@/lib/auth";
 import { forUser } from "@/lib/scope";
 import { HistoryControls } from "@/components/HistoryControls";
 import { HistoryList } from "@/components/HistoryList";
-import { EmptyNote } from "@/components/EmptyState";
+import { EmptyNote, EmptyState } from "@/components/EmptyState";
+import { Inbox, Search } from "lucide-react";
 import { TopBar } from "@/components/TopBar";
 import { Sensitive } from "@/components/Sensitive";
 import { groupTransactionsByDay } from "@/lib/ledger-view";
@@ -48,7 +49,7 @@ export default async function HistoryPage({
   const groups = groupTransactionsByDay(page.transactions, accounts, categories, people, holdings);
   const accountOptions = accounts
     .filter((a) => !a.archived)
-    .map((a) => ({ id: a._id.toHexString(), name: a.name }));
+    .map((a) => ({ id: a._id.toHexString(), name: a.name, type: a.type }));
 
   return (
     <>
@@ -68,9 +69,41 @@ export default async function HistoryPage({
 
         {groups.length === 0 ? (
           <div className="mt-4">
-            <EmptyNote>
-              {from || to ? "Nothing in this range." : "No entries yet. Tap + below."}
-            </EmptyNote>
+            {searchParams.types === "__none__" ? (
+              <EmptyState
+                Icon={Inbox}
+                message="No filters selected. Pick at least one type to see entries."
+                actionLabel="Show all"
+                actionHref="/history"
+              />
+            ) : q ? (
+              <EmptyState
+                Icon={Search}
+                message={
+                  <>
+                    No entries match &ldquo;{q}&rdquo;. Try a different word, or clear the search.
+                  </>
+                }
+                actionLabel="Show all"
+                actionHref="/history"
+              />
+            ) : types || accountIds ? (
+              <EmptyState
+                Icon={Inbox}
+                message="Nothing in this range matches the selected filters."
+                actionLabel="Show all"
+                actionHref="/history"
+              />
+            ) : from || to ? (
+              <EmptyNote>Nothing in this range.</EmptyNote>
+            ) : (
+              <EmptyState
+                Icon={Inbox}
+                message="No entries yet. Everything you add shows up here."
+                actionLabel="Add an entry"
+                actionHref="/add"
+              />
+            )}
           </div>
         ) : (
           <>

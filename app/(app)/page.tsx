@@ -27,6 +27,12 @@ const TYPE_LABEL: Record<InvestmentType, string> = {
   other: "Other",
 };
 
+function getGreeting(hour: number): string {
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 export default async function HomePage() {
   const session = await getSession();
   if (!session) return null; // middleware already redirects; defense in depth
@@ -63,9 +69,14 @@ export default async function HomePage() {
   }));
 
   const monthLabel = now.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const greeting = getGreeting(now.getHours());
   const spentSeries = daily.map((d) => d.value);
   const hasSpendData = daily.some((d) => d.value > 0);
   const excludedCount = accounts.filter((a) => a.exclude_from_total).length;
+  const peak = daily.reduce<(typeof daily)[number] | null>(
+    (top, d) => (top === null || d.value > top.value ? d : top),
+    null,
+  );
 
   return (
     <main className="mx-auto max-w-md px-4 pb-6">
@@ -77,7 +88,8 @@ export default async function HomePage() {
         style={{ paddingTop: "calc(env(safe-area-inset-top) + 16px)" }}
       >
         <div className="min-w-0">
-          <div className="t-micro text-fg-faint">Net worth · {monthLabel}</div>
+          <div className="t-label text-fg-faint">{greeting}</div>
+          <div className="t-micro mt-1 text-fg-faint">Net worth · {monthLabel}</div>
           <div className="mt-1.5 flex items-baseline gap-2">
             <span className="t-label font-num text-fg-muted">Rs</span>
             <CountUpAmount value={netWorth.total} className="t-balance-compact text-accent-text" />
@@ -126,7 +138,12 @@ export default async function HomePage() {
 
       {hasSpendData ? (
         <section className="mt-5">
-          <SectionHead label="Spending" meta="Last 30 days" href="/insights" hrefLabel="Insights" />
+          <SectionHead
+            label="Spending"
+            meta={peak && peak.value > 0 ? `peak ${peak.fullLabel}` : "Last 30 days"}
+            href="/insights"
+            hrefLabel="Insights"
+          />
           <div className="rounded-chip border border-rule bg-surface-lift p-4 pb-2">
             <AreaChart points={daily} ariaLabel="Daily spending, last 30 days" />
           </div>

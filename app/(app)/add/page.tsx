@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { X } from "lucide-react";
+import { X, CircleAlert } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { forUser } from "@/lib/scope";
 import { AddForm } from "@/components/AddForm";
+import type { AccountDoc, CategoryDoc } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -15,10 +16,17 @@ export default async function AddPage() {
   if (!session) return null;
 
   const scope = await forUser(session.userId);
-  const [accounts, categories] = await Promise.all([
-    scope.accounts.find({ archived: { $ne: true } }).toArray(),
-    scope.categories.find({}).toArray(),
-  ]);
+  let accounts: AccountDoc[] = [];
+  let categories: CategoryDoc[] = [];
+  let loadError = false;
+  try {
+    [accounts, categories] = await Promise.all([
+      scope.accounts.find({ archived: { $ne: true } }).toArray(),
+      scope.categories.find({}).toArray(),
+    ]);
+  } catch {
+    loadError = true;
+  }
   const categoryById = new Map(categories.map((c) => [c._id.toHexString(), c] as const));
 
   return (
@@ -40,6 +48,16 @@ export default async function AddPage() {
           <X size={19} strokeWidth={1.75} aria-hidden />
         </Link>
       </div>
+
+      {loadError ? (
+        <div className="mb-4 flex items-start gap-2">
+          <CircleAlert size={15} strokeWidth={1.75} className="mt-0.5 shrink-0 text-out" aria-hidden />
+          <p className="t-label text-out">
+            Couldn&apos;t load your accounts/categories — you can still add entries, picking them
+            will be unavailable for now.
+          </p>
+        </div>
+      ) : null}
 
       <AddForm
         accounts={accounts.map((a) => ({ id: a._id.toHexString(), name: a.name }))}

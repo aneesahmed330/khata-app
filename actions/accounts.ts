@@ -97,19 +97,26 @@ export async function setAccountFlagAction(
 /** Archiving keeps every transaction and the balance intact, just takes the
  *  account out of the pickers and the dashboard. It's the reversible option,
  *  and the right one for an account you've closed in real life. */
-export async function setAccountArchivedAction(formData: FormData): Promise<void> {
+export async function setAccountArchivedAction(
+  _prev: AccountActionResult | undefined,
+  formData: FormData,
+): Promise<AccountActionResult> {
   const session = await getSession();
-  if (!session) redirect("/login");
+  if (!session) return { error: "Session expired. Please log in again." };
 
   const id = String(formData.get("account_id") ?? "");
   const archived = String(formData.get("archived") ?? "") === "true";
-  if (!ObjectId.isValid(id)) redirect("/");
+  if (!ObjectId.isValid(id)) return { error: "Invalid account." };
 
   const scope = await forUser(session.userId);
-  await scope.accounts.updateOne({ _id: new ObjectId(id) }, { $set: { archived } });
+  try {
+    await scope.accounts.updateOne({ _id: new ObjectId(id) }, { $set: { archived } });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't update that." };
+  }
 
   revalidateAccounts(id);
-  redirect(`/accounts/${id}`);
+  return { ok: true };
 }
 
 /** Only ever allowed for an account with nothing behind it.
@@ -141,16 +148,23 @@ export async function deleteAccountAction(formData: FormData): Promise<void> {
 
 /** Recompute the balance from the transactions behind it — the reconcile
  *  escape hatch for an account that has drifted. */
-export async function recomputeAccountAction(formData: FormData): Promise<void> {
+export async function recomputeAccountAction(
+  _prev: AccountActionResult | undefined,
+  formData: FormData,
+): Promise<AccountActionResult> {
   const session = await getSession();
-  if (!session) redirect("/login");
+  if (!session) return { error: "Session expired. Please log in again." };
 
   const id = String(formData.get("account_id") ?? "");
-  if (!ObjectId.isValid(id)) redirect("/");
+  if (!ObjectId.isValid(id)) return { error: "Invalid account." };
 
   const scope = await forUser(session.userId);
-  await recomputeAccountBalance(scope, new ObjectId(id));
+  try {
+    await recomputeAccountBalance(scope, new ObjectId(id));
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Recalculation failed." };
+  }
 
   revalidateAccounts(id);
-  redirect(`/accounts/${id}`);
+  return { ok: true };
 }

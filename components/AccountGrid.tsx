@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { EyeOff, MinusCircle } from "lucide-react";
+import { EyeOff, MinusCircle, Landmark, Wallet, Smartphone } from "lucide-react";
 import clsx from "clsx";
 import { formatPKR } from "@/lib/format";
 import { useHideBalances } from "@/lib/use-hide-balances";
@@ -16,6 +16,12 @@ export interface AccountSummary {
   /** Balance doesn't count toward net worth. */
   excludeFromTotal?: boolean;
 }
+
+const ACCOUNT_ICONS: Record<string, typeof Landmark> = {
+  bank: Landmark,
+  cash: Wallet,
+  wallet: Smartphone,
+};
 
 // A contained 2-column grid — replaces the old horizontal-scroll strip, which
 // always clipped the last card at the viewport edge (looked like an unfinished,
@@ -33,6 +39,7 @@ export function AccountGrid({ accounts }: { accounts: AccountSummary[] }) {
         // Negative-balance red is itself a signal — suppressed along with the
         // number so hiding balances doesn't leave "this one's overdrawn" visible.
         const negative = !masked && a.balance < 0;
+        const Icon = a.type ? ACCOUNT_ICONS[a.type] : undefined;
         return (
           <Link
             key={a.id}
@@ -47,6 +54,9 @@ export function AccountGrid({ accounts }: { accounts: AccountSummary[] }) {
             )}
           >
             <span className="flex items-center gap-1 truncate text-[11px] text-fg-muted">
+              {Icon ? (
+                <Icon size={10} strokeWidth={2} className="shrink-0 text-fg-faint" aria-hidden />
+              ) : null}
               <span className="truncate">{a.name}</span>
               {a.hideBalance ? (
                 <EyeOff size={10} strokeWidth={2} className="shrink-0 text-fg-faint" aria-label="Balance hidden" />

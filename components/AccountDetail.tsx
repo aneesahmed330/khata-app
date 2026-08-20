@@ -253,23 +253,40 @@ function DangerSection({
 }) {
   const [confirming, setConfirming] = useState(false);
   const deletable = account.transactionCount === 0;
+  const [recomputeState, recomputeFormAction] = useFormState<AccountActionResult, FormData>(
+    recomputeAccountAction,
+    {},
+  );
+  const [archiveState, archiveFormAction] = useFormState<AccountActionResult, FormData>(
+    setAccountArchivedAction,
+    {},
+  );
 
   return (
     <section className="flex flex-col gap-3 border-t border-rule pt-5">
       <h2 className="t-micro text-fg-faint">Manage</h2>
 
-      <form action={recomputeAccountAction}>
+      <form action={recomputeFormAction} className="flex flex-col gap-2">
         <input type="hidden" name="account_id" value={account.id} />
         <PlainButton Icon={RotateCcw} label="Recalculate balance from entries" />
+        {recomputeState.error ? (
+          <ErrorNote message={recomputeState.error} />
+        ) : recomputeState.ok ? (
+          <p className="t-label flex items-center gap-1.5 text-in">
+            <Check size={13} strokeWidth={2.5} aria-hidden />
+            Recalculated.
+          </p>
+        ) : null}
       </form>
 
-      <form action={setAccountArchivedAction}>
+      <form action={archiveFormAction} className="flex flex-col gap-2">
         <input type="hidden" name="account_id" value={account.id} />
         <input type="hidden" name="archived" value={String(!account.archived)} />
         <PlainButton
           Icon={account.archived ? ArchiveRestore : Archive}
           label={account.archived ? "Unarchive this account" : "Archive this account"}
         />
+        {archiveState.error ? <ErrorNote message={archiveState.error} /> : null}
       </form>
       <p className="t-label -mt-1 text-fg-faint">
         Archiving hides it from the dashboard and the account pickers. Nothing is deleted and the

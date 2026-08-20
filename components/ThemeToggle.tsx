@@ -5,6 +5,12 @@ import { Moon, Sun } from "lucide-react";
 
 type Theme = "light" | "dark";
 
+// So ThemeStateLabel (a separate component instance, e.g. sitting next to
+// this button in the same Settings row) updates the instant this toggle is
+// clicked — same same-tab-notification need lib/use-hide-balances.ts and
+// lib/use-accent.ts solve with their own custom events.
+const THEME_CHANGED_EVENT = "khata-theme-changed";
+
 function currentTheme(): Theme {
   const attr = document.documentElement.dataset.theme;
   if (attr === "light" || attr === "dark") return attr;
@@ -28,6 +34,7 @@ export function ThemeToggle() {
     } catch {
       /* private mode — the in-page switch still works, it just won't persist */
     }
+    window.dispatchEvent(new Event(THEME_CHANGED_EVENT));
     setTheme(next);
   }
 
@@ -53,4 +60,20 @@ export function ThemeToggle() {
       )}
     </button>
   );
+}
+
+// A textual state readout next to the icon toggle — matches KhataMobile's
+// SettingsScreen, which shows "On"/"Off" under the Dark mode row instead of
+// leaving the icon as the only signal of which mode is active.
+export function ThemeStateLabel() {
+  const [theme, setTheme] = useState<Theme | null>(null);
+
+  useEffect(() => {
+    setTheme(currentTheme());
+    const onChange = () => setTheme(currentTheme());
+    window.addEventListener(THEME_CHANGED_EVENT, onChange);
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, onChange);
+  }, []);
+
+  return <>{theme === null ? "Ink or Paper" : theme === "dark" ? "Ink" : "Paper"}</>;
 }

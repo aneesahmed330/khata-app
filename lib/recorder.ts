@@ -159,7 +159,14 @@ export function useRecorder(onComplete: (rec: Recording) => void): UseRecorderRe
       return;
     }
 
-    const recorder = new MediaRecorder(stream, { mimeType });
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(stream, { mimeType });
+    } catch {
+      stream.getTracks().forEach((t) => t.stop());
+      setError("Recording start nahi hui. Dobara try karo.");
+      return;
+    }
     recorderRef.current = recorder;
 
     // Metering is a nice-to-have: if the browser won't give us an AudioContext
@@ -205,7 +212,14 @@ export function useRecorder(onComplete: (rec: Recording) => void): UseRecorderRe
       }
     };
 
-    recorder.start();
+    try {
+      recorder.start();
+    } catch {
+      teardownAudio();
+      stream.getTracks().forEach((t) => t.stop());
+      setError("Recording start nahi hui. Dobara try karo.");
+      return;
+    }
     setRecording(true);
     setElapsed(0);
     timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);

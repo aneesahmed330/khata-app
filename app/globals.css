@@ -193,6 +193,126 @@
   }
 }
 
+/* ── accent-color picker (lib/use-accent.ts) ──────────────────────────────
+   "marigold" is the existing default and needs no rule here — these seven
+   only apply once `data-accent` is set on <html>. Fill (--k-accent) is the
+   same hex in both themes, same as marigold's own fill; only the on-surface
+   text variant swaps per theme, mirroring marigold's accent/accent-text
+   split above. Text shades are the standard Tailwind 700 (light-mode, on
+   paper) / 400 (dark-mode, on ink) steps for each hue — not run through
+   dataviz's validate_palette.js, but the same "darker step for light
+   surfaces, lighter step for dark surfaces" principle the marigold pair
+   above already demonstrates. on-accent stays white for every preset except
+   amber, which is light/warm enough to need marigold's own dark-ink
+   treatment instead. */
+:root[data-accent="indigo"] {
+  --k-accent: #4f46e5;
+  --k-accent-text: #818cf8;
+  --k-on-accent: #ffffff;
+}
+:root[data-accent="indigo"][data-theme="light"] {
+  --k-accent-text: #4338ca;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-accent="indigo"]:not([data-theme]) {
+    --k-accent-text: #4338ca;
+  }
+}
+
+:root[data-accent="blue"] {
+  --k-accent: #2563eb;
+  --k-accent-text: #60a5fa;
+  --k-on-accent: #ffffff;
+}
+:root[data-accent="blue"][data-theme="light"] {
+  --k-accent-text: #1d4ed8;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-accent="blue"]:not([data-theme]) {
+    --k-accent-text: #1d4ed8;
+  }
+}
+
+:root[data-accent="teal"] {
+  --k-accent: #0d9488;
+  --k-accent-text: #2dd4bf;
+  --k-on-accent: #ffffff;
+}
+:root[data-accent="teal"][data-theme="light"] {
+  --k-accent-text: #0f766e;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-accent="teal"]:not([data-theme]) {
+    --k-accent-text: #0f766e;
+  }
+}
+
+:root[data-accent="emerald"] {
+  --k-accent: #059669;
+  --k-accent-text: #34d399;
+  --k-on-accent: #ffffff;
+}
+:root[data-accent="emerald"][data-theme="light"] {
+  --k-accent-text: #047857;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-accent="emerald"]:not([data-theme]) {
+    --k-accent-text: #047857;
+  }
+}
+
+:root[data-accent="amber"] {
+  --k-accent: #d97706;
+  --k-accent-text: #fbbf24;
+  --k-on-accent: #17110a;
+}
+:root[data-accent="amber"][data-theme="light"] {
+  --k-accent-text: #b45309;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-accent="amber"]:not([data-theme]) {
+    --k-accent-text: #b45309;
+  }
+}
+
+:root[data-accent="rose"] {
+  --k-accent: #e11d48;
+  --k-accent-text: #fb7185;
+  --k-on-accent: #ffffff;
+}
+:root[data-accent="rose"][data-theme="light"] {
+  --k-accent-text: #be123c;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-accent="rose"]:not([data-theme]) {
+    --k-accent-text: #be123c;
+  }
+}
+
+:root[data-accent="violet"] {
+  --k-accent: #7c3aed;
+  --k-accent-text: #a78bfa;
+  --k-on-accent: #ffffff;
+}
+:root[data-accent="violet"][data-theme="light"] {
+  --k-accent-text: #6d28d9;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-accent="violet"]:not([data-theme]) {
+    --k-accent-text: #6d28d9;
+  }
+}
+
+/* ── text-size picker (lib/use-text-size.ts) ──────────────────────────────
+   `zoom` (not a rem-based type-scale conversion) — see use-text-size.ts for
+   why. "medium" is the default and needs no rule. */
+:root[data-text-size="small"] {
+  zoom: 0.92;
+}
+:root[data-text-size="large"] {
+  zoom: 1.15;
+}
+
 @layer base {
   * {
     border-color: var(--color-rule);

@@ -57,12 +57,12 @@ function Row({
   description: string;
 }) {
   const [checked, setChecked] = useState(initial);
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function toggle() {
     const next = !checked;
     setChecked(next);
-    setFailed(false);
+    setError(null);
 
     const body = new FormData();
     body.set("category", category);
@@ -71,7 +71,7 @@ function Row({
     const result = await setNetWorthPrefAction(undefined, body);
     if (result?.error) {
       setChecked(!next);
-      setFailed(true);
+      setError(result.error);
     }
   }
 
@@ -81,7 +81,7 @@ function Row({
       <div className="min-w-0 flex-1">
         <div className="t-body">{title}</div>
         <div className="t-label text-fg-muted">{description}</div>
-        {failed ? <div className="t-label mt-1 text-out">Couldn&apos;t save that.</div> : null}
+        {error ? <div className="t-label mt-1 text-out">{error}</div> : null}
       </div>
       <Switch checked={checked} onChange={() => void toggle()} label={title} />
     </div>

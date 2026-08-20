@@ -84,13 +84,15 @@ export function LoanList({ loans }: { loans: LoanSummary[] }) {
               />
             </div>
 
-            {!settled && repaid > 0 ? (
+            {!settled && loan.principal > 0 ? (
               <div className="mt-2 flex items-center gap-2">
                 <div className="h-1 flex-1 bg-rule-soft">
-                  <div
-                    className="anim-bar-grow h-1 rounded-r-[2px] bg-chart-in"
-                    style={{ "--bar-w": `${Math.min(repaidPct, 100)}%` } as React.CSSProperties}
-                  />
+                  {repaid > 0 ? (
+                    <div
+                      className="anim-bar-grow h-1 rounded-r-[2px] bg-chart-in"
+                      style={{ "--bar-w": `${Math.min(repaidPct, 100)}%` } as React.CSSProperties}
+                    />
+                  ) : null}
                 </div>
                 <span className="t-micro shrink-0 tabular-nums text-fg-faint">
                   {Math.round(repaidPct)}% back
