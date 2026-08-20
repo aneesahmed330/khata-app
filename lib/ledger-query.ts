@@ -12,6 +12,7 @@ export interface LedgerQueryOptions {
   limit?: number;
   q?: string; // free-text search — matches item/note directly, category/person/account by resolved name
   types?: string[]; // TxnType values to include — omitted/empty means all types
+  accountIds?: string[]; // account _id values — matches either side of a transfer; omitted/empty means all accounts
   sortDir?: "asc" | "desc"; // chronological direction; defaults to "desc" (newest first)
 }
 
@@ -80,6 +81,11 @@ export async function fetchLedgerPage(
   if (dateFilter) and.push(dateFilter);
 
   if (opts.types?.length) and.push({ type: { $in: opts.types } });
+
+  if (opts.accountIds?.length) {
+    const ids = opts.accountIds.filter(ObjectId.isValid).map((id) => new ObjectId(id));
+    and.push({ $or: [{ account_id: { $in: ids } }, { to_account_id: { $in: ids } }] });
+  }
 
   if (opts.q) and.push(await searchFilter(scope, opts.q));
 

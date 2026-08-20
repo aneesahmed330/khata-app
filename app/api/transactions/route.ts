@@ -18,6 +18,8 @@ export async function GET(req: Request) {
   const q = searchParams.get("q") ?? undefined;
   const typesParam = searchParams.get("types");
   const types = typesParam ? typesParam.split(",").filter(Boolean) : undefined;
+  const accountsParam = searchParams.get("accounts");
+  const accountIds = accountsParam ? accountsParam.split(",").filter(Boolean) : undefined;
   const sortDir = searchParams.get("sort") === "asc" ? "asc" : "desc";
   const nowParam = searchParams.get("now");
   const now = nowParam ? new Date(nowParam) : new Date();
@@ -29,7 +31,7 @@ export async function GET(req: Request) {
     scope.people.find({}).toArray(),
     scope.holdings.find({}).toArray(),
     scope.tags.find({}).toArray(),
-    fetchLedgerPage(scope, { from, to, cursor, limit: 30, q, types, sortDir }),
+    fetchLedgerPage(scope, { from, to, cursor, limit: 30, q, types, accountIds, sortDir }),
   ]);
 
   const groups = groupTransactionsByDay(transactions, accounts, categories, people, holdings, now, tags);

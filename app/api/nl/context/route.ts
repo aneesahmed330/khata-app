@@ -17,7 +17,7 @@ export async function GET() {
   const categoryById = new Map(categories.map((c) => [c._id.toHexString(), c] as const));
 
   return NextResponse.json({
-    accounts: accounts.map((a) => ({ id: a._id.toHexString(), name: a.name })),
+    accounts: accounts.map((a) => ({ id: a._id.toHexString(), name: a.name, type: a.type })),
     categories: categories.map((c) => ({
       id: c._id.toHexString(),
       name: c.name,
