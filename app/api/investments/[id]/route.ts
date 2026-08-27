@@ -9,9 +9,7 @@ import type { InvestmentType } from "@/lib/types";
 // components/HoldingDetail.tsx (detail fields, buy/sell/dividend, current
 // value snapshot, exclude_from_total/hide_value toggles) and the matching
 // actions in actions/investments.ts — JSON in/out instead of server-rendered
-// page + form actions. Buy/sell/dividend entries here never carry an
-// account_id (the mobile UI doesn't collect one) — same "money moved, source
-// not recorded" convention already documented on TransactionDoc.account_id.
+// page + form actions.
 
 const TYPE_LABEL: Record<InvestmentType, string> = {
   stock: "Stock",
@@ -81,7 +79,22 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     excludeFromTotal: holding.exclude_from_total ?? false,
     status: holding.status,
     transactions,
+    accounts: accounts.map((a) => ({ id: a._id.toHexString(), name: a.name })),
   });
+}
+
+// Account is optional for buy/sell/dividend — sometimes the user genuinely
+// doesn't remember which account funded a purchase/received a payout.
+// Omitting it (or an id that isn't this user's) resolves to "no account
+// recorded," never a guess. Mirrors actions/investments.ts's
+// resolveOptionalAccount exactly.
+async function resolveOptionalAccount(scope: UserScope, raw: unknown) {
+  const value = String(raw ?? "");
+  if (!value) return { ok: true as const, id: undefined };
+  if (!ObjectId.isValid(value)) return { ok: false as const, error: "Invalid account." };
+  const account = await scope.accounts.findOne({ _id: new ObjectId(value) });
+  if (!account) return { ok: false as const, error: "Account not found." };
+  return { ok: true as const, id: account._id };
 }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -112,6 +125,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         { status: 400 },
       );
     }
+    const resolvedAccount = await resolveOptionalAccount(scope, body.accountId);
+    if (!resolvedAccount.ok) return NextResponse.json({ error: resolvedAccount.error }, { status: 400 });
 
     try {
       await postTransaction(scope, {
@@ -119,6 +134,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         amount,
         holding_id: holding._id,
         quantity_delta: quantity,
+        account_id: resolvedAccount.id,
         date: new Date(),
         source: "manual",
       });
@@ -136,12 +152,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!amount) {
       return NextResponse.json({ error: "Amount must be a number greater than zero." }, { status: 400 });
     }
+    const resolvedAccount = await resolveOptionalAccount(scope, body.accountId);
+    if (!resolvedAccount.ok) return NextResponse.json({ error: resolvedAccount.error }, { status: 400 });
 
     try {
       await postTransaction(scope, {
         type: "dividend",
         amount,
         holding_id: holding._id,
+        account_id: resolvedAccount.id,
         date: new Date(),
         source: "manual",
       });

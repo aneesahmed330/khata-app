@@ -143,7 +143,7 @@ export function NewInvestmentForm({ accounts }: { accounts: { id: string; name: 
         <select
           id="account_id"
           name="account_id"
-          defaultValue={accounts[0]?.id ?? ""}
+          defaultValue=""
           className="t-body w-full appearance-none rounded-chip border border-rule bg-surface-sunk px-4 py-3.5 text-fg outline-none transition-colors focus:border-accent"
         >
           <option value="">Not sure / don&apos;t remember</option>
